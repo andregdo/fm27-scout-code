@@ -6,6 +6,10 @@
 //! the youth, junior-coaching and youth-recruitment bytes sit at a fixed offset
 //! from the supporter-share block in the same row.
 //!
+//! The six-byte field that follows the supporter traits is zeroed on FM27 27.0.0
+//! saves and carries a second supporter-share block on 27.0.1+2503222, so both
+//! shapes are accepted.
+//!
 //! The table is not contiguous, so rows are found by their club-index key and
 //! then validated against the supporter-share block. Only clubs that keep a
 //! monthly finance chain have a row; other clubs stay unset.
@@ -239,7 +243,7 @@ fn longest_key_ordered(candidates: Vec<FacilityCandidate>) -> Vec<FacilityCandid
 ///
 /// The row header is followed by a variable-length list, so the share block is
 /// not at a fixed offset. Its shape is distinctive: six shares summing to 100,
-/// six supporter traits, six zero bytes and a `2` tag.
+/// six supporter traits, a six-byte supporter field and a `2` tag.
 fn locate_info_row(game_db: &[u8], start: usize) -> Option<usize> {
     let last = (start + 450).min(game_db.len().checked_sub(66)?);
     for info in (start + 50)..=last {
@@ -258,7 +262,19 @@ fn locate_info_row(game_db: &[u8], start: usize) -> Option<usize> {
         if !traits.iter().all(|value| (1..=20).contains(value)) {
             continue;
         }
-        if game_db.get(info + 21..info + 27) != Some(&[0u8; 6][..]) {
+        let Some(supporter_field) = game_db.get(info + 21..info + 27) else {
+            continue;
+        };
+        // FM27 27.0.0 builds leave this field zeroed. In 27.0.1+2503222 it
+        // holds a second share block that also sums to 100.
+        let zeroed = supporter_field == [0u8; 6];
+        let shares_again = supporter_field.iter().all(|value| *value <= 100)
+            && supporter_field
+                .iter()
+                .map(|value| u32::from(*value))
+                .sum::<u32>()
+                == 100;
+        if !zeroed && !shares_again {
             continue;
         }
         if game_db.get(info + 27) != Some(&2) {
@@ -318,6 +334,63 @@ mod tests {
         assert_eq!(offsets.youth_offset(), info + 63);
         assert_eq!(offsets.junior_coaching_offset(), info + 64);
         assert_eq!(offsets.youth_recruitment_offset(), info + 65);
+    }
+
+    #[test]
+    fn reads_the_facility_row_with_a_second_share_block() {
+        let mut game_db = vec![0u8; 2048];
+        game_db[0..4].copy_from_slice(&7u32.to_le_bytes());
+        let start = 1000usize;
+        game_db[start..start + 4].copy_from_slice(&8u32.to_le_bytes());
+        game_db[start + 4] = 16;
+        let info = start + 160;
+        game_db[info..info + 6].copy_from_slice(&[10, 30, 25, 15, 5, 15]);
+        game_db[info + 15..info + 21].copy_from_slice(&[10, 10, 10, 10, 10, 10]);
+        // 27.0.1+2503222 stores a second share block where older builds keep zeros.
+        game_db[info + 21..info + 27].copy_from_slice(&[12, 28, 24, 16, 6, 14]);
+        game_db[info + 27] = 2;
+        game_db[info + 63..info + 66].copy_from_slice(&[13, 10, 10]);
+
+        let mut club_index = ClubIndex::default();
+        club_index.record_spans.insert(
+            100,
+            ClubRecordSpan {
+                record_start: 0,
+                record_end: 500,
+            },
+        );
+        let facilities = read_club_facilities(&game_db, &club_index, &HashSet::from([100]));
+        let row = facilities.get(&100).expect("a facility row");
+        assert_eq!(row.training, Some(16));
+        assert_eq!(row.youth, Some(13));
+        assert_eq!(row.junior_coaching, Some(10));
+        assert_eq!(row.youth_recruitment, Some(10));
+    }
+
+    #[test]
+    fn ignores_a_supporter_field_that_is_neither_zero_nor_shares() {
+        let mut game_db = vec![0u8; 2048];
+        game_db[0..4].copy_from_slice(&7u32.to_le_bytes());
+        let start = 1000usize;
+        game_db[start..start + 4].copy_from_slice(&8u32.to_le_bytes());
+        game_db[start + 4] = 16;
+        let info = start + 160;
+        game_db[info..info + 6].copy_from_slice(&[10, 30, 25, 15, 5, 15]);
+        game_db[info + 15..info + 21].copy_from_slice(&[10, 10, 10, 10, 10, 10]);
+        game_db[info + 21..info + 27].copy_from_slice(&[90, 10, 10, 10, 10, 10]);
+        game_db[info + 27] = 2;
+        game_db[info + 63..info + 66].copy_from_slice(&[13, 10, 10]);
+
+        let mut club_index = ClubIndex::default();
+        club_index.record_spans.insert(
+            100,
+            ClubRecordSpan {
+                record_start: 0,
+                record_end: 500,
+            },
+        );
+        let facilities = read_club_facilities(&game_db, &club_index, &HashSet::from([100]));
+        assert!(facilities.is_empty());
     }
 
     #[test]

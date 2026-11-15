@@ -32,13 +32,14 @@ pub fn editable_builds() -> String {
 /// 27.0.1+2503222 was verified against 27.0.1+2494687 and the managed club was
 /// read for it, before players carried their registered team slot, and before
 /// the fixture calendar was joined to competitions to label reserve and youth
-/// squads.
+/// squads, and before facility rows accepted the second supporter-share block
+/// that build 27.0.1+2503222 stores after the supporter traits.
 pub const PARSER_VERSION: &str = concat!(
     "1.1.7",
     "+nation-names+listing+listing-flags+injury-windows+club-finance+stadiums",
     "+club-facilities+youth-level-edt+competition-names+club-leagues+season-stats+unique-ids",
     "+staff+second-nations+managed-club+build-2494687+build-2503222+squad-slots",
-    "+squad-fixtures+club-history-gender+identity-gender"
+    "+squad-fixtures+club-history-gender+identity-gender+facility-share-tail"
 );
 pub const EARLIEST_YEAR: i32 = 1901;
 pub const LATEST_YEAR: i32 = 2200;

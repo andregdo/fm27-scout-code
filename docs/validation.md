@@ -159,6 +159,13 @@ junior-coaching and youth-recruitment ratings, all-seater capacity and expansion
 capacity. Re-parsing the output and fmsave both read the new values; the club's
 last league position and all other finance fields remained unchanged.
 
+Build 27.0.1+2503222 fills the six-byte supporter field at `info+21` with a
+second supporter-share block where 27.0.0 saves keep zeros. After accepting both
+shapes, `AP King - Milan.fm` (game date 2029-02-02) yields 120 corporate
+facilities rows and 119 detailed facility rows; the same parser still yields the
+121 rows above on `BB KING - Parma Calcio.fm`, and the `club_real_save.rs`
+expectations pass on that save.
+
 The ignored `club_real_save.rs` tests cover:
 
 - finance, facilities and stadium counts,

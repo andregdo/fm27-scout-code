@@ -114,12 +114,17 @@ variable-length list, then the supporter-share block:
 ```text
 supporter shares       six bytes, sum 100
 supporter traits       +15, six bytes (1–20)
-zero run               +21, six bytes
+supporter field        +21, six bytes
 tag                    +27  02
 youth facilities       +63  u8 (1–20)
 junior coaching        +64  u8 (1–20)
 youth recruitment      +65  u8 (1–20)
 ```
+
+The supporter field at `+21` is six zero bytes on 27.0.0 saves. On
+27.0.1+2503222 it holds a second supporter-share block that also sums to 100.
+Both shapes are accepted; requiring zeros rejects almost every row on the newer
+build.
 
 Rows are not contiguous and only the tracked clubs (those with a finance chain)
 have one. A club's key can also occur inside another record, so locate every
