@@ -2,7 +2,9 @@
 mod tests {
     use chrono::{Datelike, NaiveDate};
 
-    use crate::layout::{decode_date, scale_attribute, stored_attribute_index, trait_name};
+    use crate::layout::{
+        decode_date, scale_attribute, staff_job_name, stored_attribute_index, trait_name,
+    };
 
     #[test]
     fn date_round_trips_day_of_year() {
@@ -24,6 +26,15 @@ mod tests {
         bytes[2..].copy_from_slice(&2026u16.to_le_bytes());
         bytes[..2].copy_from_slice(&400u16.to_le_bytes());
         assert_eq!(decode_date(&bytes, 0), None);
+    }
+
+    #[test]
+    fn staff_job_names_cover_the_board_and_medical_codes() {
+        assert_eq!(staff_job_name(24), Some("General Manager"));
+        assert_eq!(staff_job_name(44), Some("Chief Scout"));
+        assert_eq!(staff_job_name(46), Some("Doctor"));
+        assert_eq!(staff_job_name(66), Some("Owner"));
+        assert_eq!(staff_job_name(99), None);
     }
 
     #[test]

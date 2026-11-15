@@ -39,7 +39,7 @@ pub const PARSER_VERSION: &str = concat!(
     "+nation-names+listing+listing-flags+injury-windows+club-finance+stadiums",
     "+club-facilities+youth-level-edt+competition-names+club-leagues+season-stats+unique-ids",
     "+staff+second-nations+managed-club+build-2494687+build-2503222+squad-slots",
-    "+squad-fixtures+club-history-gender+identity-gender+facility-share-tail"
+    "+squad-fixtures+club-history-gender+identity-gender+facility-share-tail+staff-job-titles"
 );
 pub const EARLIEST_YEAR: i32 = 1901;
 pub const LATEST_YEAR: i32 = 2200;
@@ -706,8 +706,9 @@ pub const STAFF_ROLE_NAMES: [&str; 15] = [
     "Set Piece Coach",
 ];
 
-/// The job codes FM27 labels in the staff screen. Unconfirmed codes return `None`
-/// instead of inventing a title.
+/// The job codes FM27 labels in the staff screen. Code 24 is the General Manager
+/// chairman-title variant, distinct from 8 Managing Director. Unconfirmed codes
+/// return `None` instead of inventing a title.
 pub fn staff_job_name(code: u8) -> Option<&'static str> {
     Some(match code {
         2 => "Coach",
@@ -720,16 +721,20 @@ pub fn staff_job_name(code: u8) -> Option<&'static str> {
         16 => "Manager",
         20 => "Assistant Manager",
         22 => "Set Piece Coach",
+        24 => "General Manager",
         26 => "Fitness Coach",
         34 => "Goalkeeping Coach",
         38 => "Chief Doctor",
         40 => "Head of Sports Science",
+        44 => "Chief Scout",
+        46 => "Doctor",
         48 => "Sports Scientist",
         50 => "Head Physio",
         58 => "Data Analyst",
         60 => "Performance Analyst",
         62 => "Data Analyst",
         64 => "Head of Youth Development",
+        66 => "Owner",
         70 => "President",
         86 => "Loan Manager",
         88 => "Technical Director",

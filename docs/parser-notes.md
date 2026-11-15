@@ -322,6 +322,11 @@ The current job comes from the held contract record or the no-contract role reco
 second contract tag 19 bytes after the selector marks an offer and is rejected. When several
 held records exist, the latest start date wins.
 
+Job codes 24, 44, 46 and 66 are General Manager, Chief Scout, Doctor and Owner. They were
+told apart from their holders on the reference saves and match the game's own job-title
+table: 24 is the General Manager chairman-title variant, separate from 8 Managing Director
+and 70 President, and 46 Doctor is separate from 38 Chief Doctor and 12 Physio.
+
 Profile attributes use the preference area and the 26-byte block at ability +40. Authority
 and working with youngsters are already 1..20; determination is stored 1..100 and divided
 by five. The other 18 attributes use the same 1..100 encoding. A row keeps raw values too,

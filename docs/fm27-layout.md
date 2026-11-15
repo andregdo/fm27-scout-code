@@ -320,6 +320,10 @@ team              tag + 20  u32
 job               tag + 32  u8
 ```
 
+The job byte uses the game's job codes. `staff_job_name` in `layout.rs` names the verified
+ones: 44 is Chief Scout, 46 Doctor and 66 Owner; 24 is General Manager, the chairman-title
+variant kept apart from 8 Managing Director and 70 President.
+
 Staff profile attributes, displayed on the 1–20 scale:
 
 ```text
