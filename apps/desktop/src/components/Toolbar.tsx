@@ -22,9 +22,9 @@ import { useSaves } from "@/lib/query";
 import { relativeTime, cn } from "@/lib/utils";
 import { formatNumber } from "@/lib/i18n";
 import { useI18n } from "@/lib/useI18n";
-import { useAppStore, type DataMode } from "@/store/app";
+import { useAppStore } from "@/store/app";
 import { useOpenSave } from "@/lib/openSave";
-import { Badge, Button, Input, Select } from "./ui";
+import { Badge, Button, Input } from "./ui";
 
 export function Toolbar() {
   const { t, locale } = useI18n();
@@ -39,8 +39,6 @@ export function Toolbar() {
   const patchClubFilters = useAppStore((state) => state.patchClubFilters);
   const staffFilters = useAppStore((state) => state.staffFilters);
   const patchStaffFilters = useAppStore((state) => state.patchStaffFilters);
-  const dataMode = useAppStore((state) => state.dataMode);
-  const setDataMode = useAppStore((state) => state.setDataMode);
   const compareUids = useAppStore((state) => state.compareUids);
   const setCompareOpen = useAppStore((state) => state.setCompareOpen);
   const setAnalysisOpen = useAppStore((state) => state.setAnalysisOpen);
@@ -286,16 +284,6 @@ export function Toolbar() {
             </span>
           </Button>
         )}
-        <Select
-          value={dataMode}
-          onChange={(event) => setDataMode(event.target.value as DataMode)}
-          className="h-8 w-[118px] text-[10px]"
-          title={t("toolbar.modeHint")}
-        >
-          <option value="full">{t("toolbar.modeFull")}</option>
-          <option value="fair_play">{t("toolbar.modeFair")}</option>
-          <option value="moneyball">{t("toolbar.modeMoneyball")}</option>
-        </Select>
         <Button
           variant={compareUids.length > 0 ? "gold" : "ghost"}
           size="sm"

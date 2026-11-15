@@ -17,7 +17,6 @@ import {
 const SAVED_VIEWS_KEY = "fm27scout.views.v1";
 const LANGUAGE_KEY = "fm27scout.language.v1";
 const CURRENCY_KEY = "fm27scout.currency.v1";
-const DATA_MODE_KEY = "fm27scout.dataMode.v1";
 
 export interface AttributeRule {
   id: string;
@@ -292,7 +291,6 @@ interface AppState {
   setSelectedUid: (uid: number | null) => void;
   toggleCompare: (uid: number) => void;
   clearCompare: () => void;
-  setDataMode: (mode: DataMode) => void;
   setDisplayMode: (mode: DisplayMode) => void;
   setTheme: (theme: Theme) => void;
   setLanguage: (language: Language) => void;
@@ -324,7 +322,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   viewMode: "players",
   filterOptions: null,
   filters: EMPTY_FILTERS,
-  sort: loadDataMode() === "full" ? [{ by: "ca", dir: "desc" }] : [{ by: "value", dir: "desc" }],
+  sort: [{ by: "ca", dir: "desc" }],
   page: 0,
   pageSize: 150,
   selectedUid: null,
@@ -340,7 +338,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   staffPageSize: 100,
   selectedStaffUid: null,
   compareUids: [],
-  dataMode: loadDataMode(),
+  dataMode: "full",
   displayMode: "display",
   theme: "system",
   language: loadLanguage(),
@@ -677,32 +675,6 @@ export const useAppStore = create<AppState>((set, get) => ({
       return { compareUids: [...state.compareUids, uid] };
     }),
   clearCompare: () => set({ compareUids: [] }),
-  setDataMode: (dataMode) => {
-    persistDataMode(dataMode);
-    set((state) => {
-      const full = dataMode === "full";
-      const visibleAttributes =
-        dataMode === "moneyball" ? [] : state.filters.attributes;
-      const sortUsesHiddenAbility = state.sort.some(
-        (rule) => rule.by === "ca" || rule.by === "pa" || rule.by === "best_role_score",
-      );
-      return {
-        dataMode,
-        filters: {
-          ...state.filters,
-          // CA/PA and the PA-CA gap are not visible outside Full mode.
-          caMin: full ? state.filters.caMin : null,
-          caMax: full ? state.filters.caMax : null,
-          paMin: full ? state.filters.paMin : null,
-          paMax: full ? state.filters.paMax : null,
-          paCaGapMin: full ? state.filters.paCaGapMin : null,
-          attributes: visibleAttributes,
-        },
-        sort: sortUsesHiddenAbility ? [{ by: "value", dir: "desc" }] : state.sort,
-        page: 0,
-      };
-    });
-  },
   setDisplayMode: (displayMode) => set({ displayMode }),
   setTheme: (theme) => set({ theme }),
   setLanguage: (language) => {
@@ -769,26 +741,6 @@ function persistLanguage(language: Language) {
   }
 }
 
-function loadDataMode(): DataMode {
-  if (typeof window === "undefined") return "full";
-  try {
-    const value = window.localStorage.getItem(DATA_MODE_KEY);
-    return value === "fair_play" || value === "moneyball" || value === "full"
-      ? value
-      : "full";
-  } catch {
-    return "full";
-  }
-}
-
-function persistDataMode(mode: DataMode) {
-  if (typeof window === "undefined") return;
-  try {
-    window.localStorage.setItem(DATA_MODE_KEY, mode);
-  } catch {
-    // Local storage can be unavailable in hardened webviews.
-  }
-}
 
 function loadCurrency(): CurrencyCode {
   if (typeof window === "undefined") return "save";
