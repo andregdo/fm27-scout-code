@@ -850,6 +850,7 @@ const en = {
 
   // Player editor
   "inspector.edit": "Edit",
+  "inspector.transfer": "Transfer",
   "edit.title": "Edit player",
   "edit.description": "Changes are staged per player; save all pending edits together to a new file.",
   "edit.tab.ability": "Ability",
@@ -950,6 +951,42 @@ const en = {
   "edit.reset": "Reset changes",
   "edit.changed": "{count} changes",
 
+  // Transfer
+  "transfer.title": "Move player",
+  "transfer.description":
+    "Send a contracted player to another club's senior team in a new save copy.",
+  "transfer.currentClub": "Currently at {club}",
+  "transfer.destination": "Destination club",
+  "transfer.searchClubs": "Search clubs…",
+  "transfer.loadingClubs": "Searching clubs…",
+  "transfer.noClubs": "No clubs match this search.",
+  "transfer.chooseHint": "Pick a destination club to preview the move.",
+  "transfer.loadingPlayer": "Loading player…",
+  "transfer.previewing": "Checking the save…",
+  "transfer.guardHint":
+    "Only a contracted senior-team player can move, and the contract must match the club. Free agents, loans, future contracts and clubs without a stored squad are refused.",
+  "transfer.riskWarning":
+    "Experimental transfer: the edit writes a new save copy and never changes the source save. Back up the source, close Football Manager before writing, and load the copy to verify the move.",
+  "transfer.pendingNote":
+    "This player also has staged attribute or contract edits. The transferred save does not include them.",
+  "transfer.planTitle": "Preview",
+  "transfer.from": "From",
+  "transfer.to": "To",
+  "transfer.roster": "Squad {before} → {after}",
+  "transfer.contractRestart": "Contract restarts on {date}",
+  "transfer.listingCleared": "Transfer and loan listing cleared",
+  "transfer.captaincyCleared": "Captain or vice-captain role cleared",
+  "transfer.noFee": "No fee, transfer history or squad number is written.",
+  "transfer.save": "Write transferred save…",
+  "transfer.saving": "Writing and verifying…",
+  "transfer.done": "Transfer saved and verified.",
+  "transfer.failed": "Transfer failed",
+  "transfer.successTitle": "Transferred save written",
+  "transfer.successSummary": "{from} → {to}",
+  "transfer.successNote":
+    "The new save was re-parsed and every written field was verified. Load it in Football Manager and advance several days to confirm the game keeps the move.",
+  "transfer.open": "Open transferred save",
+
   // Scouting
   "analysis.tab.scout": "Scouting",
   "scout.reading": "Reading your club…",
@@ -1027,7 +1064,7 @@ const en = {
   "scout.reason.freeAgent": "Free agent",
   "scout.reason.expiring": "Contract ends in {value} days",
   "scout.reason.releaseClause": "Release clause {value}",
-  "scout.reason.keyPlayer": "Key player at his club",
+  "scout.reason.keyPlayer": "Key player at the club",
   "scout.reason.fringe": "Not a regular",
   "scout.reason.unwanted": "Surplus to requirements",
   "scout.reason.prospect": "Prospect",
@@ -1043,7 +1080,7 @@ const en = {
   "scout.departureReason.belowLevel": "Below the squad's level",
   "scout.departureReason.ageing": "Getting old ({value})",
   "scout.departureReason.expiring": "Contract ends in {value} days",
-  "scout.departureReason.highWage": "High wage for his role ({value}/wk)",
+  "scout.departureReason.highWage": "High wage for the role ({value}/wk)",
   "scout.departureReason.blocked": "Needs games to grow",
   "scout.departureReason.unwanted": "Squad status: surplus",
   "scout.departureReason.listed": "Already transfer listed",
@@ -1904,6 +1941,7 @@ const zhCN: Record<TranslationKey, string> = {
     "还有 {count} 名球员的修改未保存。打开其他存档会丢弃这些修改，是否继续？",
 
   "inspector.edit": "编辑",
+  "inspector.transfer": "转会",
   "edit.title": "编辑球员",
   "edit.description": "修改先暂存在球员上；全部编辑完成后统一保存为一个新存档。",
   "edit.tab.ability": "能力",
@@ -2000,6 +2038,40 @@ const zhCN: Record<TranslationKey, string> = {
   "edit.openEdited": "打开编辑后的存档",
   "edit.reset": "重置修改",
   "edit.changed": "{count} 项修改",
+
+  // 转会
+  "transfer.title": "球员转会",
+  "transfer.description": "把有合同的球员转到另一家俱乐部的一线队，并写入新存档副本。",
+  "transfer.currentClub": "当前俱乐部：{club}",
+  "transfer.destination": "目标俱乐部",
+  "transfer.searchClubs": "搜索俱乐部…",
+  "transfer.loadingClubs": "正在搜索俱乐部…",
+  "transfer.noClubs": "没有匹配的俱乐部。",
+  "transfer.chooseHint": "选择目标俱乐部以预览转会。",
+  "transfer.loadingPlayer": "正在加载球员…",
+  "transfer.previewing": "正在检查存档…",
+  "transfer.guardHint":
+    "仅支持有当前合同的一线队球员，且合同必须与所在俱乐部一致。自由球员、租借、未来合同和没有存储阵容的俱乐部会被拒绝。",
+  "transfer.riskWarning":
+    "实验性转会：修改会写入新存档副本，源存档不会被修改。请先备份源存档，写入前退出 Football Manager，并加载副本验证转会。",
+  "transfer.pendingNote": "该球员还有待保存的属性或合同修改；转会存档不会包含这些修改。",
+  "transfer.planTitle": "预览",
+  "transfer.from": "原俱乐部",
+  "transfer.to": "新俱乐部",
+  "transfer.roster": "阵容 {before} → {after}",
+  "transfer.contractRestart": "合同从 {date} 重新开始",
+  "transfer.listingCleared": "已清除转会/租借挂牌",
+  "transfer.captaincyCleared": "已清除队长/副队长身份",
+  "transfer.noFee": "不会写入转会费、转会历史或球衣号码。",
+  "transfer.save": "写入转会存档…",
+  "transfer.saving": "正在写入并验证…",
+  "transfer.done": "转会已保存并验证。",
+  "transfer.failed": "转会失败",
+  "transfer.successTitle": "转会存档已写入",
+  "transfer.successSummary": "{from} → {to}",
+  "transfer.successNote":
+    "新存档已重新解析，所有写入字段都已验证。请在 Football Manager 中加载它并推进数日，确认游戏保留了这次转会。",
+  "transfer.open": "打开转会后的存档",
 
   // 球探
   "analysis.tab.scout": "球探",

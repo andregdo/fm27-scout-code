@@ -138,6 +138,32 @@ enum Command {
         #[arg(long, default_value_t = 3)]
         compression_level: i32,
     },
+    /// Move a contracted player to another club's senior team in a copy of a save.
+    Transfer {
+        /// Source .fm save. It is opened read-only.
+        save: PathBuf,
+        /// Player uid from `fm27scout players` or the SQLite cache.
+        #[arg(long)]
+        uid: u32,
+        /// Destination club uid from `fm27scout clubs`.
+        #[arg(long)]
+        to_club: u32,
+        /// Output path. Defaults to `<save stem>.transferred.fm` next to the source.
+        #[arg(long)]
+        output: Option<PathBuf>,
+        /// Internal save name stored in the new file, for test copies.
+        #[arg(long)]
+        save_name: Option<String>,
+        /// Overwrite the output file if it already exists.
+        #[arg(long)]
+        force: bool,
+        /// Print the planned transfer without writing a save.
+        #[arg(long)]
+        dry_run: bool,
+        /// zstd compression level for the rebuilt game_db (1-22).
+        #[arg(long, default_value_t = 3)]
+        compression_level: i32,
+    },
     /// Edit low-risk club fields in a copy of a save.
     EditClub {
         /// Source .fm save. It is opened read-only.
@@ -468,6 +494,81 @@ fn main() -> Result<()> {
                 }))?
             );
         }
+        Command::Transfer {
+            save,
+            uid,
+            to_club,
+            output,
+            save_name,
+            force,
+            dry_run,
+            compression_level,
+        } => {
+            if !(1..=22).contains(&compression_level) {
+                bail!("--compression-level must be between 1 and 22");
+            }
+            let save_file =
+                SaveFile::open(&save).with_context(|| format!("open {}", save.display()))?;
+            let metadata = read_metadata(&save_file).context("read save metadata")?;
+            let mut editor =
+                PlayerEditor::open(&save_file, &metadata).context("open player editor")?;
+            let change = editor
+                .transfer(uid, to_club)
+                .with_context(|| format!("transfer player uid {uid} to club {to_club}"))?;
+            editor.validate()?;
+
+            let output = output.unwrap_or_else(|| default_transfer_output(&save));
+            if output == save {
+                bail!("refusing to overwrite the source save; choose a different --output");
+            }
+            if output.exists() && !force {
+                bail!(
+                    "output {} already exists; pass --force to overwrite it",
+                    output.display()
+                );
+            }
+            if dry_run {
+                println!(
+                    "{}",
+                    serde_json::to_string_pretty(&serde_json::json!({
+                        "uid": uid,
+                        "source": save.display().to_string(),
+                        "output": output.display().to_string(),
+                        "save_name": save_name,
+                        "written": false,
+                        "transfer": change,
+                    }))?
+                );
+                return Ok(());
+            }
+
+            let report = editor
+                .write_as(&save_file, &output, compression_level, save_name.as_deref())
+                .context("write transferred save")?;
+            if let Err(error) = change.verify_save(&output) {
+                let _ = std::fs::remove_file(&output);
+                return Err(error).context("verify transferred save");
+            }
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&serde_json::json!({
+                    "uid": uid,
+                    "source": save.display().to_string(),
+                    "output": report.output,
+                    "save_name": save_name,
+                    "written": true,
+                    "verified": true,
+                    "file_size": report.file_size,
+                    "compressed_delta": report.compressed_delta,
+                    "transfer": change,
+                    "warnings": [
+                        "The game is not open on this save. Load the new file and advance several days before relying on it.",
+                        "The transfer does not create a transfer-fee history entry and does not change club finances.",
+                        "Squad number and saved tactics were not edited; check the new club's squad screen after loading."
+                    ],
+                }))?
+            );
+        }
         Command::EditClub {
             save,
             club_uid,
@@ -612,6 +713,15 @@ fn default_edit_output(source: &Path) -> PathBuf {
         .unwrap_or_else(|| "edited".to_owned());
     let parent = source.parent().unwrap_or_else(|| Path::new("."));
     parent.join(format!("{stem}.edited.fm"))
+}
+
+fn default_transfer_output(source: &Path) -> PathBuf {
+    let stem = source
+        .file_stem()
+        .map(|value| value.to_string_lossy().into_owned())
+        .unwrap_or_else(|| "transferred".to_owned());
+    let parent = source.parent().unwrap_or_else(|| Path::new("."));
+    parent.join(format!("{stem}.transferred.fm"))
 }
 
 fn verify_edited_save(path: &Path, uid: u32, request: &PlayerEditRequest) -> Result<()> {

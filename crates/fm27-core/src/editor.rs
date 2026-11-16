@@ -26,6 +26,7 @@ use crate::names::NamePools;
 use crate::parse::closing_person_header;
 use crate::persons::{ClubLookup, PersonDecoder, PersonLocation};
 use crate::player_scan::{PlayerRecord, PlayerRecords};
+use crate::roster;
 
 #[derive(Debug, Clone, Serialize)]
 pub struct EditChange {
@@ -36,6 +37,97 @@ pub struct EditChange {
     pub before_display: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub after_display: Option<String>,
+}
+
+/// A player moved to another club's senior team, as the transfer editor did it.
+#[derive(Debug, Clone, Serialize)]
+pub struct TransferChange {
+    pub uid: u32,
+    /// The player's stored index plus one, used by the team player lists.
+    pub player_index: u32,
+    pub from_club_uid: u32,
+    pub from_club_name: String,
+    pub from_team_id: u32,
+    pub to_club_uid: u32,
+    pub to_club_name: String,
+    pub to_team_id: u32,
+    pub from_players_before: usize,
+    pub from_players_after: usize,
+    pub to_players_before: usize,
+    pub to_players_after: usize,
+    pub captaincy_cleared: bool,
+    pub changes: Vec<EditChange>,
+}
+
+impl TransferChange {
+    /// Re-parse a save written by [`PlayerEditor::transfer`] and verify the move.
+    ///
+    /// The player must be registered with the destination club and team, the
+    /// contract must name the destination team and start on the save's game date,
+    /// and the stored player lists must have moved the player index across.
+    pub fn verify_save(&self, path: impl AsRef<Path>) -> Result<()> {
+        let path = path.as_ref();
+        let parsed = crate::parse::parse_save(path)?;
+        let player = parsed
+            .players
+            .iter()
+            .find(|player| player.uid == self.uid)
+            .ok_or_else(|| {
+                Error::parse(format!(
+                    "the transferred save no longer contains player uid {}",
+                    self.uid
+                ))
+            })?;
+        if player.club_uid != Some(self.to_club_uid) {
+            return Err(Error::parse(format!(
+                "player uid {} is at club {:?}, expected {}",
+                self.uid, player.club_uid, self.to_club_uid
+            )));
+        }
+        if player.team_id != Some(self.to_team_id) {
+            return Err(Error::parse(format!(
+                "player uid {} is registered with team {:?}, expected {}",
+                self.uid, player.team_id, self.to_team_id
+            )));
+        }
+        let contract = player.contract.as_ref().ok_or_else(|| {
+            Error::parse(format!(
+                "player uid {} has no contract after the transfer",
+                self.uid
+            ))
+        })?;
+        if contract.team_id != Some(self.to_team_id) {
+            return Err(Error::parse(format!(
+                "player uid {}'s contract names team {:?}, expected {}",
+                self.uid, contract.team_id, self.to_team_id
+            )));
+        }
+        if contract.start.as_deref() != parsed.metadata.game_date.as_deref() {
+            return Err(Error::parse(format!(
+                "player uid {}'s contract starts on {:?}, expected the game date {:?}",
+                self.uid, contract.start, parsed.metadata.game_date
+            )));
+        }
+
+        let save = SaveFile::open(path)?;
+        let metadata = crate::metadata::read_metadata(&save)?;
+        let editor = PlayerEditor::open(&save, &metadata)?;
+        let old_roster = editor.team_roster(self.from_team_id, self.from_club_uid)?;
+        let new_roster = editor.team_roster(self.to_team_id, self.to_club_uid)?;
+        if old_roster.contains(&self.player_index) {
+            return Err(Error::parse(format!(
+                "the old team still lists player index {}",
+                self.player_index
+            )));
+        }
+        if !new_roster.contains(&self.player_index) {
+            return Err(Error::parse(format!(
+                "the new team does not list player index {}",
+                self.player_index
+            )));
+        }
+        Ok(())
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -242,6 +334,9 @@ pub struct PlayerEditor {
     clock: NaiveDate,
     club_names: HashMap<u32, String>,
     club_by_team: HashMap<u32, (u32, u8)>,
+    club_teams: HashMap<u32, Vec<u32>>,
+    club_genders: HashMap<u32, Option<u8>>,
+    pindexes: HashSet<u32>,
     person_locations: HashMap<u32, PersonLocation>,
     edited_uids: HashSet<u32>,
     changes: Vec<EditChange>,
@@ -269,6 +364,17 @@ impl PlayerEditor {
         let names = NamePools::locate(&game_db)?;
         let records = PlayerRecords::locate(&game_db, names.end_offset)?;
         let clubs = ClubIndex::read(&game_db)?;
+        let pindexes = records.records.iter().map(|record| record.pindex).collect();
+        let club_teams = clubs
+            .clubs
+            .iter()
+            .map(|club| (club.uid, club.teams.clone()))
+            .collect();
+        let club_genders = clubs
+            .clubs
+            .iter()
+            .map(|club| (club.uid, club.gender))
+            .collect();
         let clock = metadata
             .game_date
             .as_deref()
@@ -281,6 +387,9 @@ impl PlayerEditor {
             clock,
             club_names: clubs.name_by_uid,
             club_by_team: clubs.fielding_team_to_club,
+            club_teams,
+            club_genders,
+            pindexes,
             person_locations: HashMap::new(),
             edited_uids: HashSet::new(),
             changes: Vec::new(),
@@ -352,6 +461,246 @@ impl PlayerEditor {
             )));
         }
         Ok(location)
+    }
+
+    /// The stored player list of a team, as the transfer editor reads it.
+    pub fn team_roster(&self, team_id: u32, club_uid: u32) -> Result<Vec<u32>> {
+        Ok(roster::find_team_list(&self.game_db, team_id, Some(club_uid), &self.pindexes)?.players)
+    }
+
+    /// Move a contracted player to another club's senior team.
+    ///
+    /// The player must have a single current permanent contract with the team the
+    /// player plays for, and both teams must have a stored player list. The edit
+    /// rewrites the player's team and club join date, the contract's team and start
+    /// date, clears the transfer/loan listing bits, removes the player from the old
+    /// team's player list and appends the player to the new one. It clears a captain
+    /// or vice-captain reference held at the old team. Wages, contract end, squad
+    /// status and squad number are left as they are.
+    pub fn transfer(&mut self, uid: u32, to_club_uid: u32) -> Result<TransferChange> {
+        let record = self.require_record(uid)?;
+        let player_team = read_u32(&self.game_db, record.offset + PlayerLayout::TEAM_ID_OFFSET)
+            .ok_or_else(|| Error::parse("the player record ends before its team id"))?;
+        if player_team == u32::MAX {
+            return Err(Error::Unsupported(format!(
+                "player uid {uid} is a free agent; signings are not supported"
+            )));
+        }
+        let Some((from_club_uid, from_slot)) = self.club_by_team.get(&player_team).copied() else {
+            return Err(Error::Unsupported(format!(
+                "player uid {uid} is not registered with a club team"
+            )));
+        };
+        if from_slot != 0 {
+            return Err(Error::Unsupported(format!(
+                "player uid {uid} plays for a non-senior team; only senior-team transfers are supported"
+            )));
+        }
+        if from_club_uid == to_club_uid {
+            return Err(Error::Unsupported(
+                "the player already plays for that club".to_owned(),
+            ));
+        }
+        let from_club_name = self
+            .club_names
+            .get(&from_club_uid)
+            .cloned()
+            .unwrap_or_else(|| format!("club {from_club_uid}"));
+        let to_club_name = self
+            .club_names
+            .get(&to_club_uid)
+            .cloned()
+            .unwrap_or_else(|| format!("club {to_club_uid}"));
+        let to_team = self
+            .club_teams
+            .get(&to_club_uid)
+            .and_then(|teams| teams.first())
+            .copied()
+            .ok_or_else(|| {
+                Error::Unsupported(format!("club {to_club_uid} fields no senior team"))
+            })?;
+        if let (Some(from_gender), Some(to_gender)) = (
+            self.club_genders.get(&from_club_uid).copied().flatten(),
+            self.club_genders.get(&to_club_uid).copied().flatten(),
+        ) {
+            if from_gender != to_gender {
+                return Err(Error::Unsupported(
+                    "a player cannot transfer between men's and women's clubs".to_owned(),
+                ));
+            }
+        }
+
+        let location = self.current_contract_location(uid)?;
+        if location.team_id != player_team {
+            return Err(Error::Unsupported(format!(
+                "player uid {uid} is on loan or registered with another team; only a simple contract can be transferred"
+            )));
+        }
+        if location.club_uid != Some(from_club_uid) {
+            return Err(Error::Unsupported(format!(
+                "player uid {uid}'s contract club does not match the registered club"
+            )));
+        }
+        let position = *self
+            .records
+            .by_uid
+            .get(&uid)
+            .ok_or_else(|| Error::parse(format!("player uid {uid} was not found")))?;
+        let window_end = self.records.window_end(position, self.game_db.len());
+        let decoder = ContractDecoder {
+            club_names: &self.club_names,
+            club_by_team: &self.club_by_team,
+            clock: self.clock,
+        };
+        let contract = decoder
+            .decode(
+                &self.game_db,
+                record.offset,
+                window_end,
+                position + 1 == self.records.records.len(),
+                record.pindex,
+                Some(from_club_uid),
+            )
+            .ok_or_else(|| {
+                Error::Unsupported(format!(
+                    "player uid {uid}'s contract chain could not be decoded"
+                ))
+            })?;
+        if contract.chain.len() != 1 || !contract.chain[0].has_terms {
+            return Err(Error::Unsupported(format!(
+                "player uid {uid} has offers or earlier contract records; only a single current contract is supported"
+            )));
+        }
+
+        let team_at = record.offset + PlayerLayout::TEAM_ID_OFFSET;
+        let join_at = record.offset + PlayerLayout::CLUB_JOIN_DATE_OFFSET;
+        let join_before = decode_date(&self.game_db, join_at);
+        let join_packed = read_u16(&self.game_db, join_at)
+            .ok_or_else(|| Error::parse("the player record ends before its club join date"))?;
+        let join_encoded = encode_date(self.clock, join_packed)
+            .ok_or_else(|| Error::Unsupported("the game date cannot be encoded".to_owned()))?;
+        let start_at = location
+            .tag_offset
+            .checked_add_signed(ContractLayout::START_OFFSET as isize)
+            .ok_or_else(|| Error::parse("the contract start date offset underflows"))?;
+        let start_packed = read_u16(&self.game_db, start_at)
+            .ok_or_else(|| Error::parse("the contract record ends before its start date"))?;
+        let start_encoded = encode_date(self.clock, start_packed)
+            .ok_or_else(|| Error::Unsupported("the game date cannot be encoded".to_owned()))?;
+        let contract_team_at = location.tag_offset + ContractLayout::TEAM_ID_OFFSET;
+        let listing_at = location.tail_offset + ContractLayout::TAIL_LIST_FLAGS_OFFSET;
+        let listing_before = read_u8(&self.game_db, listing_at)
+            .ok_or_else(|| Error::parse("the contract record ends before its listing flags"))?;
+        let listing_after = listing_before & !0b11;
+
+        let from_list = roster::find_team_list(
+            &self.game_db,
+            player_team,
+            Some(from_club_uid),
+            &self.pindexes,
+        )?;
+        let to_list =
+            roster::find_team_list(&self.game_db, to_team, Some(to_club_uid), &self.pindexes)?;
+        let player_index = record
+            .pindex
+            .checked_add(1)
+            .ok_or_else(|| Error::parse("the player index overflows"))?;
+        roster::validate_transfer(&self.game_db, player_index, &from_list, &to_list)?;
+
+        self.game_db[team_at..team_at + 4].copy_from_slice(&to_team.to_le_bytes());
+        self.game_db[join_at..join_at + 4].copy_from_slice(&join_encoded);
+        self.game_db[contract_team_at..contract_team_at + 4]
+            .copy_from_slice(&to_team.to_le_bytes());
+        self.game_db[start_at..start_at + 4].copy_from_slice(&start_encoded);
+        self.game_db[listing_at] = listing_after;
+        let roster_change =
+            roster::apply_transfer(&mut self.game_db, player_index, &from_list, &to_list)?;
+        self.edited_uids.insert(uid);
+
+        let start_before = location.start;
+        let mut changes = vec![self.push_change_display(
+            "club.uid",
+            i64::from(from_club_uid),
+            i64::from(to_club_uid),
+            Some(from_club_name.clone()),
+            Some(to_club_name.clone()),
+        )];
+        changes.push(self.push_change_display(
+            "team.id",
+            i64::from(player_team),
+            i64::from(to_team),
+            None,
+            None,
+        ));
+        changes.push(self.push_change_display(
+            "club.join_date",
+            join_before.map(compact_date).unwrap_or(0),
+            compact_date(self.clock),
+            join_before.map(|date| date.to_string()),
+            Some(self.clock.to_string()),
+        ));
+        changes.push(self.push_change_display(
+            "contract.team_id",
+            i64::from(location.team_id),
+            i64::from(to_team),
+            None,
+            None,
+        ));
+        changes.push(self.push_change_display(
+            "contract.start",
+            start_before.map(compact_date).unwrap_or(0),
+            compact_date(self.clock),
+            start_before.map(|date| date.to_string()),
+            Some(self.clock.to_string()),
+        ));
+        if listing_before != listing_after {
+            changes.push(self.push_change_display(
+                "contract.listing",
+                i64::from(listing_before),
+                i64::from(listing_after),
+                None,
+                None,
+            ));
+        }
+        changes.push(self.push_change_display(
+            "roster.from.players",
+            roster_change.from_players_before as i64,
+            roster_change.from_players_after as i64,
+            None,
+            None,
+        ));
+        changes.push(self.push_change_display(
+            "roster.to.players",
+            roster_change.to_players_before as i64,
+            roster_change.to_players_after as i64,
+            None,
+            None,
+        ));
+        if roster_change.captaincy_cleared {
+            changes.push(self.push_change_display(
+                "captaincy",
+                1,
+                0,
+                Some("captain or vice-captain".to_owned()),
+                Some("left empty".to_owned()),
+            ));
+        }
+        Ok(TransferChange {
+            uid,
+            player_index,
+            from_club_uid,
+            from_club_name,
+            from_team_id: player_team,
+            to_club_uid,
+            to_club_name,
+            to_team_id: to_team,
+            from_players_before: roster_change.from_players_before,
+            from_players_after: roster_change.from_players_after,
+            to_players_before: roster_change.to_players_before,
+            to_players_after: roster_change.to_players_after,
+            captaincy_cleared: roster_change.captaincy_cleared,
+            changes,
+        })
     }
 
     /// Set the weekly wage on the current permanent contract. The value is in

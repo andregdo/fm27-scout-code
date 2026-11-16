@@ -310,6 +310,23 @@ Alexander-Arnold (status byte `5`, flags `0x00`) is not listed in game, the flag
 rule reports 454 transfer-listed and 1,495 loan-listed players; the old `+40 = 5` rule
 reported 756 transfer-listed players.
 
+## Team player lists
+
+Each team record stores a counted array of `pindex + 1` values: the team id minus one at
+`+0`, the club uid minus one twice at `+4`/`+8`, a `u16` count at `+46`, the players from
+`+48`, then a 38-byte trailer whose first two words are the captain and vice-captain
+references (player index + 1 or `FFFFFFFF`). A record is `86 + 4 * count` bytes. The
+captain/vice-captain reading is inferred: every set reference checked was one of the
+record's own players, but it has not been confirmed in the game UI.
+
+The lists are not one contiguous table: team records are interleaved with other record
+types and split into segments. Locate a team by scanning for its team id minus one and
+validating the doubled club uid, the count and every player index against the player
+records. Reserve and youth teams can be stored under their own club object, so the
+header's club uid need not equal the parent club's uid. On the reference saves a senior
+team's list matched exactly the players whose `team_id` named that team, and a transfer
+the game completed moved the player from the old list to the new one.
+
 ## Staff
 
 Staff records are person objects whose header kind byte is `1`. A header is accepted only

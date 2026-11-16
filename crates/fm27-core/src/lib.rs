@@ -31,6 +31,7 @@ pub mod player_scan;
 pub mod price_model;
 pub mod reference;
 pub mod roles;
+pub mod roster;
 pub mod scouting;
 pub mod season_stats;
 pub mod stadiums;
@@ -43,7 +44,7 @@ pub mod youth_level;
 pub use club_editor::{
     ClubEditRequest, ClubEditor, ClubFacilityEdit, ClubFinanceEdit, StadiumCapacityEdit,
 };
-pub use editor::{EditChange, PlayerEditor};
+pub use editor::{EditChange, PlayerEditor, TransferChange};
 pub use error::{Error, Result};
 pub use model::{
     Club, ClubDetail, ClubLink, Contract, FinanceMonth, ManagedClub, ParseReport, Player,

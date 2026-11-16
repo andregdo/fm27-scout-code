@@ -2,9 +2,10 @@
 
 ## Security boundaries
 
-- Read commands and default browsing are read-only. The desktop edit dialog and
-  the optional `edit` CLI subcommand write a **new** save file, refuse to
-  overwrite their source, and verify the result by re-parsing it.
+- Read commands and default browsing are read-only. The desktop edit, club-edit
+  and transfer dialogs, and the optional `edit`, `edit-club` and `transfer` CLI
+  subcommands write a **new** save file, refuse to overwrite their source, and
+  verify the result by re-parsing it.
 - Never reads game memory or injects into game processes.
 - Does not enable Tauri `shell` / arbitrary filesystem plugins; only files
   selected by the user are used.
@@ -104,6 +105,15 @@
   expired contracts, loan end dates, staff contracts and contract clauses
   (release fees, extension options, bonuses) are read-only. FM may recalculate
   club wage totals and budgets after a wage edit.
+- Transfers are experimental and available from the CLI and the desktop
+  **Transfer** dialog. They move a player with one current contract between two
+  senior teams whose stored player lists validate. They do not create
+  transfer-fee history, move money, assign a squad number, edit saved tactics or
+  start loans, and they do not sign free agents. A simple permanent move loaded
+  normally in FM27 on `27.0.0+2486695` and `27.0.1+2503222`, and the player
+  appeared at the new club; captaincy, listing, saved-selection and squad-number
+  cases have not been separately audited. Validate every test save in FM27 before relying on it, and
+  keep the source save backed up.
 - Windows/Linux builds are not available yet.
 - CI publishes an unsigned DMG; on first launch, use
   **System Settings → Privacy & Security → Open Anyway**. Developer ID

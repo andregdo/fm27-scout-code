@@ -328,6 +328,34 @@ export function useClubDetail(uid: number | null) {
   });
 }
 
+export function useTransferClubs(
+  search: string,
+  gender: number | null,
+  enabled: boolean,
+) {
+  const saveId = useAppStore((state) => state.saveId);
+  const trimmed = search.trim();
+  const query: ClubQuery | null =
+    saveId != null && enabled
+      ? {
+          save_id: saveId,
+          search: trimmed.length > 0 ? trimmed : null,
+          genders: gender === 0 || gender === 1 ? [gender] : undefined,
+          sort_by: "reputation",
+          sort_dir: "desc",
+          page: 0,
+          page_size: 12,
+        }
+      : null;
+  return useQuery({
+    queryKey: ["transfer-clubs", query],
+    queryFn: () => queryClubs(query!),
+    enabled: query != null,
+    placeholderData: keepPreviousData,
+    staleTime: 30_000,
+  });
+}
+
 export function useClubFilterOptions() {
   const saveId = useAppStore((state) => state.saveId);
   return useQuery({

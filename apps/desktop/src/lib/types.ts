@@ -99,6 +99,30 @@ export interface BatchEditResult {
   changes: number;
 }
 
+export interface TransferChange {
+  uid: number;
+  /** The player's stored index plus one, used by the team player lists. */
+  player_index: number;
+  from_club_uid: number;
+  from_club_name: string;
+  from_team_id: number;
+  to_club_uid: number;
+  to_club_name: string;
+  to_team_id: number;
+  from_players_before: number;
+  from_players_after: number;
+  to_players_before: number;
+  to_players_after: number;
+  captaincy_cleared: boolean;
+  changes: EditChange[];
+}
+
+export interface TransferResult {
+  output: string;
+  file_size: number;
+  transfer: TransferChange;
+}
+
 export interface CaEstimateRequest {
   /** Internal 1–100 attribute values keyed by attribute name. */
   attributes: Record<string, number>;

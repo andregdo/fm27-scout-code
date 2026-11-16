@@ -249,6 +249,7 @@ interface AppState {
   analysisOpen: boolean;
   exportOpen: boolean;
   editOpen: boolean;
+  transferOpen: boolean;
   pendingOpen: boolean;
   pendingEdits: Record<number, PendingEdit>;
   helpOpen: boolean;
@@ -302,6 +303,7 @@ interface AppState {
   setAnalysisOpen: (open: boolean) => void;
   setExportOpen: (open: boolean) => void;
   setEditOpen: (open: boolean) => void;
+  setTransferOpen: (open: boolean) => void;
   setPendingOpen: (open: boolean) => void;
   stageEdit: (edit: PendingEdit) => void;
   removePendingEdit: (uid: number) => void;
@@ -350,6 +352,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   analysisOpen: false,
   exportOpen: false,
   editOpen: false,
+  transferOpen: false,
   pendingOpen: false,
   pendingEdits: {},
   helpOpen: false,
@@ -378,6 +381,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       selectedStaffUid: null,
       compareUids: [],
       editOpen: false,
+      transferOpen: false,
       pendingOpen: false,
       pendingEdits: {},
     }),
@@ -398,6 +402,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       analysisOpen: false,
       exportOpen: false,
       editOpen: false,
+      transferOpen: false,
       pendingOpen: false,
       pendingEdits: {},
     }),
@@ -692,6 +697,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   setAnalysisOpen: (analysisOpen) => set({ analysisOpen }),
   setExportOpen: (exportOpen) => set({ exportOpen }),
   setEditOpen: (editOpen) => set({ editOpen }),
+  setTransferOpen: (transferOpen) => set({ transferOpen }),
   setPendingOpen: (pendingOpen) => set({ pendingOpen }),
   stageEdit: (edit) =>
     set((state) => ({

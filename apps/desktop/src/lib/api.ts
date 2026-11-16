@@ -39,6 +39,8 @@ import type {
   SquadNeedsRequest,
   StatsMoneyballRequest,
   TraitOption,
+  TransferChange,
+  TransferResult,
   ValueFinderPage,
   ValueFinderRequest,
 } from "./types";
@@ -66,6 +68,8 @@ import {
   mockSimilarStatsPlayers,
   mockSquadNeeds,
   mockStatsMoneyball,
+  mockTransferPlan,
+  mockTransferResult,
   mockValueFinder,
 } from "./mock";
 
@@ -229,6 +233,30 @@ export async function editClub(
     return { output: outputPath, file_size: 0, changes, warnings: [] };
   }
   return timedInvoke<EditClubResult>("edit_club", { saveId, clubUid, outputPath, request });
+}
+
+export async function previewTransfer(
+  saveId: number,
+  uid: number,
+  toClubUid: number,
+): Promise<TransferChange> {
+  if (!isTauri) return mockTransferPlan(uid, toClubUid);
+  return timedInvoke<TransferChange>("preview_transfer", { saveId, uid, toClubUid });
+}
+
+export async function transferPlayer(
+  saveId: number,
+  uid: number,
+  toClubUid: number,
+  outputPath: string,
+): Promise<TransferResult> {
+  if (!isTauri) return mockTransferResult(uid, toClubUid, outputPath);
+  return timedInvoke<TransferResult>("transfer_player", {
+    saveId,
+    uid,
+    toClubUid,
+    outputPath,
+  });
 }
 
 export async function savePlayerEdits(

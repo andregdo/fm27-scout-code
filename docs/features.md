@@ -128,6 +128,15 @@
   remaining, weekly wage budget, corporate facilities, training/youth/
   junior-coaching/youth-recruitment ratings and owned-stadium capacities. Club
   edits write one new save copy and verify every changed field.
+- Experimental player transfers (CLI and desktop): move a player with a single
+  current contract to another club's senior team. The edit rewrites the player's
+  team and join date, the contract's team and start date, clears transfer/loan
+  listing and moves the player between the two stored team player lists. The
+  desktop **Transfer** dialog searches clubs, previews the move in memory and
+  writes a new save copy. Verified by re-parsing the new save and accepted in
+  game on `27.0.0+2486695` and `27.0.1+2503222` for a simple move. Fees,
+  transfer history, free-agent signings, loans and squad numbers are not
+  included.
 - The source save is never modified; existing output files are not overwritten;
   the result is verified by re-parsing it.
 - See [editor.md](editor.md) for the workflow and safety notes.

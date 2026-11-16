@@ -63,6 +63,41 @@ Facility ratings live in the club-info row that also holds supporter shares.
 Youth Level is read-only: English clubs get their EPPP category from the
 installed game's `eng_youth_grades.edt`, and it cannot be edited.
 
+## Transfer edits
+
+The CLI and the desktop app can move a contracted player to another club's senior team in a
+new save copy. In the player profile, **Transfer** opens a club search, previews the move in
+memory and then writes and verifies the new file. The equivalent CLI command is:
+
+```bash
+./target/release/fm27scout transfer "/path/to/save.fm" \
+  --uid 2000449256 --to-club 2391 \
+  --output transferred.fm --save-name "FM27 Scout Transfer Test"
+```
+
+The transfer writes:
+
+- the player's `team_id` and club join date;
+- the in-effect contract's team id and start date (the wage, end date and squad status
+  are kept);
+- the transfer/loan listing bits, which are cleared;
+- the old and new teams' stored player lists: the player is removed from the old list and
+  appended to the new one, and a captain or vice-captain reference held at the old team is
+  left empty.
+
+The command refuses free agents, loans and second-team registrations, players whose
+contract club does not match their registered club, players with more than one contract
+chain record (offers or earlier contracts), and destination clubs without a stored senior
+team list. It never creates a transfer-fee history entry, changes club finances, assigns a
+squad number or edits saved tactics. Those are separate structures and are not implemented.
+
+Mechanically the edit is verified by re-parsing the new save: the player's club, team,
+contract team and contract start, and both team player lists are checked. A simple
+permanent move loaded normally in FM27 on `27.0.0+2486695` and `27.0.1+2503222`, with the
+player at the new club. For a new kind of move, still load the new save, advance several
+days, and check the player's club, the squad screen, the next match and the transfer
+window. A build whose player lists do not validate is refused.
+
 ## Contract edits
 
 The player **Contract** tab edits the current permanent contract only:

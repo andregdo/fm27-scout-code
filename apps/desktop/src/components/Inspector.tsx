@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
+  ArrowRightLeft,
   BriefcaseBusiness,
   CalendarDays,
   Check,
@@ -58,6 +59,7 @@ export function Inspector() {
   const setSelectedUid = useAppStore((state) => state.setSelectedUid);
   const dataMode = useAppStore((state) => state.dataMode);
   const setEditOpen = useAppStore((state) => state.setEditOpen);
+  const setTransferOpen = useAppStore((state) => state.setTransferOpen);
   const pendingEdits = useAppStore((state) => state.pendingEdits);
   const setViewMode = useAppStore((state) => state.setViewMode);
   const setSelectedClubUid = useAppStore((state) => state.setSelectedClubUid);
@@ -185,15 +187,26 @@ export function Inspector() {
         </div>
         <div className="flex items-center gap-1">
           {dataMode === "full" && (
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-6 px-1.5 text-[10px]"
-              onClick={() => setEditOpen(true)}
-            >
-              <Pencil size={11} />
-              {t("inspector.edit")}
-            </Button>
+            <>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-6 px-1.5 text-[10px]"
+                onClick={() => setTransferOpen(true)}
+              >
+                <ArrowRightLeft size={11} />
+                {t("inspector.transfer")}
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-6 px-1.5 text-[10px]"
+                onClick={() => setEditOpen(true)}
+              >
+                <Pencil size={11} />
+                {t("inspector.edit")}
+              </Button>
+            </>
           )}
           <Button
             variant={compareUids.includes(player.uid) ? "gold" : "ghost"}
