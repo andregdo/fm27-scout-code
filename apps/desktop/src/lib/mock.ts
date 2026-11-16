@@ -50,7 +50,6 @@ import type {
   Trait,
   TraitOption,
   TransferChange,
-  TransferResult,
   ValueFinderPage,
   ValueFinderRequest,
   ValueFinderRow,
@@ -448,18 +447,6 @@ export function mockTransferPlan(uid: number, toClubUid: number): TransferChange
       },
       { field: "contract.squad_number", before: squadNumber, after: 255 },
     ],
-  };
-}
-
-export function mockTransferResult(
-  uid: number,
-  toClubUid: number,
-  outputPath: string,
-): TransferResult {
-  return {
-    output: outputPath,
-    file_size: 0,
-    transfer: mockTransferPlan(uid, toClubUid),
   };
 }
 

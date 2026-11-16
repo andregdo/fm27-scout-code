@@ -133,13 +133,6 @@ export function suggestedEditedSavePath(
   return suggestedSavePath(source, saveName, "edited");
 }
 
-export function suggestedTransferredSavePath(
-  source: string | undefined,
-  saveName: string | undefined,
-): string {
-  return suggestedSavePath(source, saveName, "transferred");
-}
-
 export function formatBytes(bytes: number): string {
   if (bytes >= 1024 ** 3) return `${(bytes / 1024 ** 3).toFixed(1)} GB`;
   if (bytes >= 1024 ** 2) return `${(bytes / 1024 ** 2).toFixed(1)} MB`;

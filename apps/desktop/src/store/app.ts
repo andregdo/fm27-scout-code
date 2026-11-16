@@ -212,6 +212,19 @@ export interface PendingEdit {
   request: PlayerEditRequest;
 }
 
+/** A transfer staged from the Transfer dialog and saved with the batch. */
+export interface PendingTransfer {
+  uid: number;
+  name: string;
+  from_club_name: string;
+  to_club_name: string;
+  to_club_uid: number;
+  squad_number_before: number | null;
+  listing_cleared: boolean;
+  captaincy_cleared: boolean;
+  changes: PendingChange[];
+}
+
 export type ViewMode = "players" | "clubs" | "staff";
 
 interface AppState {
@@ -252,6 +265,7 @@ interface AppState {
   transferOpen: boolean;
   pendingOpen: boolean;
   pendingEdits: Record<number, PendingEdit>;
+  pendingTransfers: Record<number, PendingTransfer>;
   helpOpen: boolean;
   toasts: Toast[];
   parsing: boolean;
@@ -307,7 +321,9 @@ interface AppState {
   setPendingOpen: (open: boolean) => void;
   stageEdit: (edit: PendingEdit) => void;
   removePendingEdit: (uid: number) => void;
-  clearPendingEdits: () => void;
+  stageTransfer: (transfer: PendingTransfer) => void;
+  removePendingTransfer: (uid: number) => void;
+  clearPendingChanges: () => void;
   setHelpOpen: (open: boolean) => void;
   setParsing: (parsing: boolean) => void;
   setParseProgress: (progress: ParseProgress | null) => void;
@@ -355,6 +371,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   transferOpen: false,
   pendingOpen: false,
   pendingEdits: {},
+  pendingTransfers: {},
   helpOpen: false,
   toasts: [],
   parsing: false,
@@ -384,6 +401,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       transferOpen: false,
       pendingOpen: false,
       pendingEdits: {},
+      pendingTransfers: {},
     }),
   clearSession: () =>
     set({
@@ -405,6 +423,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       transferOpen: false,
       pendingOpen: false,
       pendingEdits: {},
+      pendingTransfers: {},
     }),
   setViewMode: (viewMode) => set({ viewMode }),
   setFilterOptions: (filterOptions) => set({ filterOptions }),
@@ -709,7 +728,17 @@ export const useAppStore = create<AppState>((set, get) => ({
       delete pendingEdits[uid];
       return { pendingEdits };
     }),
-  clearPendingEdits: () => set({ pendingEdits: {} }),
+  stageTransfer: (transfer) =>
+    set((state) => ({
+      pendingTransfers: { ...state.pendingTransfers, [transfer.uid]: transfer },
+    })),
+  removePendingTransfer: (uid) =>
+    set((state) => {
+      const pendingTransfers = { ...state.pendingTransfers };
+      delete pendingTransfers[uid];
+      return { pendingTransfers };
+    }),
+  clearPendingChanges: () => set({ pendingEdits: {}, pendingTransfers: {} }),
   setHelpOpen: (helpOpen) => set({ helpOpen }),
   setParsing: (parsing) => set({ parsing, parseProgress: parsing ? get().parseProgress : null }),
   setParseProgress: (parseProgress) => set({ parseProgress }),

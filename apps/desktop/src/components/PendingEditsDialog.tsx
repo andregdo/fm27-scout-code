@@ -1,22 +1,24 @@
 import { useEffect, useState } from "react";
 import {
   AlertTriangle,
+  ArrowRightLeft,
   Check,
   ClipboardList,
   Loader2,
   Save,
   Trash2,
 } from "lucide-react";
-import { pickEditOutputFile, savePlayerEdits } from "@/lib/api";
+import { pickEditOutputFile, savePendingChanges } from "@/lib/api";
 import { attributeLabel, personalityLabel, traitLabel } from "@/lib/labels";
 import { useOpenSave } from "@/lib/openSave";
-import type { BatchEditResult } from "@/lib/types";
+import type { BatchSaveResult } from "@/lib/types";
 import { suggestedEditedSavePath } from "@/lib/utils";
 import { useI18n } from "@/lib/useI18n";
 import {
   useAppStore,
   type PendingChange,
   type PendingEdit,
+  type PendingTransfer,
 } from "@/store/app";
 import { Button, Modal } from "./ui";
 
@@ -27,13 +29,17 @@ export function PendingEditsDialog() {
   const saveId = useAppStore((state) => state.saveId);
   const summary = useAppStore((state) => state.summary);
   const pendingEdits = useAppStore((state) => state.pendingEdits);
+  const pendingTransfers = useAppStore((state) => state.pendingTransfers);
   const removePendingEdit = useAppStore((state) => state.removePendingEdit);
-  const clearPendingEdits = useAppStore((state) => state.clearPendingEdits);
+  const removePendingTransfer = useAppStore(
+    (state) => state.removePendingTransfer,
+  );
+  const clearPendingChanges = useAppStore((state) => state.clearPendingChanges);
   const pushToast = useAppStore((state) => state.pushToast);
   const { openPath } = useOpenSave();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [result, setResult] = useState<BatchEditResult | null>(null);
+  const [result, setResult] = useState<BatchSaveResult | null>(null);
 
   // A previous successful save must not hide a newly staged batch.
   useEffect(() => {
@@ -45,10 +51,20 @@ export function PendingEditsDialog() {
   const entries = Object.values(pendingEdits).sort((left, right) =>
     left.name.localeCompare(right.name),
   );
-  const totalChanges = entries.reduce((total, edit) => total + edit.changes.length, 0);
+  const transfers = Object.values(pendingTransfers).sort((left, right) =>
+    left.name.localeCompare(right.name),
+  );
+  const hasEntries = entries.length > 0 || transfers.length > 0;
+  const pendingPlayers = new Set([
+    ...entries.map((edit) => edit.uid),
+    ...transfers.map((transfer) => transfer.uid),
+  ]).size;
+  const totalChanges =
+    entries.reduce((total, edit) => total + edit.changes.length, 0) +
+    transfers.reduce((total, transfer) => total + transfer.changes.length, 0);
 
   const save = async () => {
-    if (saveId == null || entries.length === 0) return;
+    if (saveId == null || !hasEntries) return;
     const output = await pickEditOutputFile(
       suggestedEditedSavePath(summary?.path, summary?.save_name),
     );
@@ -56,13 +72,17 @@ export function PendingEditsDialog() {
     setBusy(true);
     setError(null);
     try {
-      const written = await savePlayerEdits(
+      const written = await savePendingChanges(
         saveId,
         output,
         entries.map((edit) => ({ uid: edit.uid, request: edit.request })),
+        transfers.map((transfer) => ({
+          uid: transfer.uid,
+          to_club_uid: transfer.to_club_uid,
+        })),
       );
       setResult(written);
-      clearPendingEdits();
+      clearPendingChanges();
       pushToast({
         title: t("toast.editDone"),
         description: written.output,
@@ -109,10 +129,10 @@ export function PendingEditsDialog() {
               variant="ghost"
               size="sm"
               onClick={() => {
-                clearPendingEdits();
+                clearPendingChanges();
                 setOpen(false);
               }}
-              disabled={busy || entries.length === 0}
+              disabled={busy || !hasEntries}
             >
               <Trash2 size={13} />
               {t("pending.removeAll")}
@@ -124,7 +144,7 @@ export function PendingEditsDialog() {
               variant="primary"
               size="sm"
               onClick={() => void save()}
-              disabled={busy || entries.length === 0}
+              disabled={busy || !hasEntries}
             >
               {busy ? <Loader2 size={13} className="animate-spin" /> : <Save size={13} />}
               {busy ? t("pending.saving") : t("pending.save")}
@@ -145,13 +165,19 @@ export function PendingEditsDialog() {
             {t("pending.successDescription", { path: result.output })}
           </div>
           <div className="text-[10px] text-[var(--muted)]">
-            {t("pending.summary", {
-              players: result.players,
-              changes: result.changes,
-            })}
+            {result.transfers > 0
+              ? t("pending.summaryTransfers", {
+                  players: result.players,
+                  transfers: result.transfers,
+                  changes: result.changes,
+                })
+              : t("pending.summary", {
+                  players: result.players,
+                  changes: result.changes,
+                })}
           </div>
         </div>
-      ) : entries.length === 0 ? (
+      ) : !hasEntries ? (
         <div className="flex flex-col items-center gap-2 px-6 py-12 text-center">
           <ClipboardList size={22} className="text-[var(--muted)]" />
           <div className="text-xs font-semibold text-[var(--ink)]">{t("pending.empty")}</div>
@@ -165,24 +191,52 @@ export function PendingEditsDialog() {
           <div className="flex items-center justify-between rounded-lg border border-[var(--line)] bg-[var(--surface-2)] px-3 py-2">
             <div className="flex items-center gap-2 text-[11px] text-[var(--muted)]">
               <ClipboardList size={14} className="text-[var(--accent)]" />
-              {t("pending.summary", {
-                players: entries.length,
-                changes: totalChanges,
-              })}
+              {transfers.length > 0
+                ? t("pending.summaryTransfers", {
+                    players: pendingPlayers,
+                    transfers: transfers.length,
+                    changes: totalChanges,
+                  })
+                : t("pending.summary", {
+                    players: entries.length,
+                    changes: totalChanges,
+                  })}
             </div>
             <span className="text-[10px] text-[var(--muted)]">{t("pending.hint")}</span>
           </div>
 
-          <div className="space-y-2">
-            {entries.map((edit) => (
-              <PendingEditRow
-                key={edit.uid}
-                edit={edit}
-                locale={locale}
-                onRemove={() => removePendingEdit(edit.uid)}
-              />
-            ))}
-          </div>
+          {transfers.length > 0 && (
+            <div className="space-y-2">
+              <div className="text-[9px] font-semibold uppercase tracking-wide text-[var(--muted)]">
+                {t("pending.transfers")}
+              </div>
+              {transfers.map((transfer) => (
+                <PendingTransferRow
+                  key={transfer.uid}
+                  transfer={transfer}
+                  onRemove={() => removePendingTransfer(transfer.uid)}
+                />
+              ))}
+            </div>
+          )}
+
+          {entries.length > 0 && (
+            <div className="space-y-2">
+              {transfers.length > 0 && (
+                <div className="text-[9px] font-semibold uppercase tracking-wide text-[var(--muted)]">
+                  {t("pending.playerEdits")}
+                </div>
+              )}
+              {entries.map((edit) => (
+                <PendingEditRow
+                  key={edit.uid}
+                  edit={edit}
+                  locale={locale}
+                  onRemove={() => removePendingEdit(edit.uid)}
+                />
+              ))}
+            </div>
+          )}
 
           {error && (
             <div className="rounded-lg border border-[var(--danger-line)] bg-[var(--danger-soft)] px-3 py-2 text-[11px] text-[var(--danger)]">
@@ -195,6 +249,63 @@ export function PendingEditsDialog() {
         </div>
       )}
     </Modal>
+  );
+}
+
+function PendingTransferRow({
+  transfer,
+  onRemove,
+}: {
+  transfer: PendingTransfer;
+  onRemove: () => void;
+}) {
+  const { t } = useI18n();
+  return (
+    <div className="rounded-xl border border-[var(--line)] bg-[var(--surface)] px-3 py-2.5">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="text-[12px] font-semibold text-[var(--ink)]">
+            {transfer.name}
+          </div>
+          <div className="mt-0.5 truncate text-[9px] text-[var(--muted)]">
+            uid {transfer.uid} · {transfer.from_club_name} →{" "}
+            {transfer.to_club_name}
+          </div>
+        </div>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="h-6 shrink-0 px-1.5 text-[10px]"
+          onClick={onRemove}
+        >
+          <Trash2 size={11} />
+          {t("pending.remove")}
+        </Button>
+      </div>
+      <div className="mt-2 flex flex-wrap gap-1">
+        <span className="flex items-center gap-1 rounded-[4px] border border-[var(--accent-line)] bg-[var(--accent-soft)] px-1.5 py-0.5 text-[9px] text-[var(--accent-strong)]">
+          <ArrowRightLeft size={9} />
+          {t("pending.transfer")}
+        </span>
+        {transfer.listing_cleared && (
+          <span className="rounded-[4px] border border-[var(--line)] bg-[var(--surface-2)] px-1.5 py-0.5 text-[9px] text-[var(--muted)]">
+            {t("transfer.listingCleared")}
+          </span>
+        )}
+        {transfer.captaincy_cleared && (
+          <span className="rounded-[4px] border border-[var(--line)] bg-[var(--surface-2)] px-1.5 py-0.5 text-[9px] text-[var(--muted)]">
+            {t("transfer.captaincyCleared")}
+          </span>
+        )}
+        {transfer.squad_number_before != null && (
+          <span className="rounded-[4px] border border-[var(--line)] bg-[var(--surface-2)] px-1.5 py-0.5 text-[9px] text-[var(--muted)]">
+            {t("pending.squadNumberCleared", {
+              number: transfer.squad_number_before,
+            })}
+          </span>
+        )}
+      </div>
+    </div>
   );
 }
 

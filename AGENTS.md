@@ -155,14 +155,14 @@ cargo build --release -p fm27-cli
 
 - `AppState` holds the writable `Store` behind a mutex, a pool of four independent read-only `Store` connections, and the data directory. Read queries use `run_read_command`; expensive or mutating work uses the writable store inside `spawn_blocking`.
 - `open_save` checks the fingerprint cache, copies the selected save to a temporary snapshot, parses it with `parse://progress` events, verifies the source did not change during the copy, then inserts the result.
-- Editing commands (`edit_player`, `edit_club`, `save_player_edits`, `preview_transfer`, `transfer_player`) mutate decompressed `game_db` bytes in memory, write a **new** file through `SaveFile::write_with_replacements`, refuse to overwrite an output, re-parse the result and verify every requested field, and delete the output if verification fails. `preview_transfer` plans the same edit without writing.
+- Editing commands (`edit_player`, `edit_club`, `save_pending_changes`, `preview_transfer`) mutate decompressed `game_db` bytes in memory, write a **new** file through `SaveFile::write_with_replacements`, refuse to overwrite an output, re-parse the result and verify every requested field, and delete the output if verification fails. `preview_transfer` plans the move without writing. `save_pending_changes` applies fixed-width player edits first, then any number of transfers (each roster splice rescans the player indexes), and verifies both kinds in one batch.
 - Every command must be registered in `tauri::generate_handler!` in `apps/desktop/src-tauri/src/lib.rs`.
 - Menu actions and Finder file-open events are bridged to the frontend by emitted events; a pending open path survives a cold launch. Undo/redo/cut/copy/paste use predefined native menu items.
 
 ### React frontend
 
 - `lib/api.ts` is the only Tauri boundary. Data functions check `isTauri` and fall back to `lib/mock.ts`, which is why `pnpm dev` works in a plain browser. Mock data must remain consistent with the Rust response shapes in `lib/types.ts`.
-- Data fetching lives in `lib/query.ts` (TanStack Query keys such as `["players", query]`). UI state, saved filter views, pending edits and dialogs live in the Zustand store `store/app.ts`.
+- Data fetching lives in `lib/query.ts` (TanStack Query keys such as `["players", query]`). UI state, saved filter views, pending changes (player edits and staged transfers) and dialogs live in the Zustand store `store/app.ts`.
 - `lib/i18n.ts` contains typed `en` and `zh-CN` dictionaries; `TranslationKey` is derived from the English dictionary, so adding a key requires adding it to both languages (or the build fails). `useI18n()` also provides currency formatting via `lib/currency.ts` and `lib/utils.ts`.
 - Reusable primitives are in `components/ui.tsx`; the large feature dialogs (`AnalysisDialog`, `Inspector`, `PlayerTable`, `FilterSidebar`, `EditPlayerDialog`, `TransferDialog`, `ClubInspector`) own their tab/filter/table logic.
 - Frontend unit tests are colocated as `*.test.ts(x)` and run with Vitest. Browser-level Playwright tests live in `apps/desktop/tests/*.spec.ts`, use the Vite mock mode, and run with `pnpm exec playwright test`.

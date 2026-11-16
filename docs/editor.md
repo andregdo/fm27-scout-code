@@ -38,11 +38,12 @@ The dialog groups:
 - hidden attributes and personality,
 - traits.
 
-**Add to pending edits** stages the changes instead of writing a save. Repeat for
+**Add to pending changes** stages the changes instead of writing a save. Repeat for
 as many players as needed; pending players show a count in the toolbar. Open
-**Pending edits** to review/remove staged players, then **Save all to a copy…**
-writes every staged player in one batch through a native Save dialog. The batch is
-verified by re-parsing the new save, and the source save is never overwritten.
+**Pending changes** to review/remove staged players and transfers, then **Save all
+to a copy…** writes every staged change in one batch through a native Save dialog.
+The batch is verified by re-parsing the new save, and the source save is never
+overwritten.
 
 ## Club edits
 
@@ -67,7 +68,8 @@ installed game's `eng_youth_grades.edt`, and it cannot be edited.
 
 The CLI and the desktop app can move a contracted player to another club's senior team in a
 new save copy. In the player profile, **Transfer** opens a club search, previews the move in
-memory and then writes and verifies the new file. The equivalent CLI command is:
+memory and stages it as a pending change. **Pending changes** writes and verifies one new
+file containing every staged edit and transfer. The equivalent CLI command is:
 
 ```bash
 ./target/release/fm27scout transfer "/path/to/save.fm" \

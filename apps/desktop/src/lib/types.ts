@@ -92,11 +92,18 @@ export interface PlayerEditBatch {
   request: PlayerEditRequest;
 }
 
-export interface BatchEditResult {
+export interface BatchSaveResult {
   output: string;
   file_size: number;
   players: number;
+  transfers: number;
   changes: number;
+}
+
+/** A staged move sent to the batch save command. */
+export interface TransferBatch {
+  uid: number;
+  to_club_uid: number;
 }
 
 export interface TransferChange {
@@ -117,12 +124,6 @@ export interface TransferChange {
   /** Squad number worn at the old club, if one was assigned. */
   squad_number_before: number | null;
   changes: EditChange[];
-}
-
-export interface TransferResult {
-  output: string;
-  file_size: number;
-  transfer: TransferChange;
 }
 
 export interface CaEstimateRequest {

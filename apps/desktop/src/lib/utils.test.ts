@@ -7,7 +7,6 @@ import {
   initials,
   formatWage,
   suggestedEditedSavePath,
-  suggestedTransferredSavePath,
 } from "./utils";
 
 describe("formatValue", () => {
@@ -60,14 +59,11 @@ describe("suggested save paths", () => {
     expect(suggestedEditedSavePath("/games/My Save.fm", "My Save")).toBe(
       "/games/My Save - edited.fm",
     );
-    expect(suggestedTransferredSavePath("/games/My Save.fm", "My Save")).toBe(
-      "/games/My Save - transferred.fm",
-    );
   });
 
   it("strips characters the file dialog rejects", () => {
-    expect(suggestedTransferredSavePath(undefined, 'A/B:C*?"<>|')).toBe(
-      "A_B_C______ - transferred.fm",
+    expect(suggestedEditedSavePath(undefined, 'A/B:C*?"<>|')).toBe(
+      "A_B_C______ - edited.fm",
     );
   });
 });

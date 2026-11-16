@@ -133,10 +133,12 @@
   team and join date, the contract's team and start date, clears transfer/loan
   listing and moves the player between the two stored team player lists. The
   desktop **Transfer** dialog searches clubs, previews the move in memory and
-  writes a new save copy. Verified by re-parsing the new save and accepted in
-  game on `27.0.0+2486695` and `27.0.1+2503222` for a simple move. Fees,
-  transfer history, free-agent signings and loans are not included; the old
-  squad number is cleared and the new club assigns one after loading.
+  stages it as a pending change. **Pending changes** saves player edits and any
+  number of staged transfers into one new save copy. Verified by re-parsing the
+  new save and accepted in game on `27.0.0+2486695` and `27.0.1+2503222` for a
+  simple move. Fees, transfer history, free-agent signings and loans are not
+  included; the old squad number is cleared and the new club assigns one after
+  loading.
 - The source save is never modified; existing output files are not overwritten;
   the result is verified by re-parsing it.
 - See [editor.md](editor.md) for the workflow and safety notes.

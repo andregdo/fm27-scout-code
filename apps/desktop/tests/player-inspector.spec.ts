@@ -15,4 +15,18 @@ test("player inspector shows other nationalities", async ({ page }) => {
   const inspector = page.locator("aside").last();
   await expect(inspector).toContainText("Other nationalities:");
   await expect(inspector).toContainText("Croatia");
+
+  // The header carries action buttons; its title must stay on one line and the
+  // row must not overflow the aside at a narrower window.
+  await page.setViewportSize({ width: 1024, height: 720 });
+  const profileTitle = inspector.getByText("Player profile", { exact: true });
+  await expect(profileTitle).toBeVisible();
+  const titleBox = await profileTitle.boundingBox();
+  expect(titleBox).not.toBeNull();
+  expect(titleBox!.height).toBeLessThan(20);
+  const header = inspector.locator(":scope > div").first();
+  const overflow = await header.evaluate(
+    (element) => element.scrollWidth - element.clientWidth,
+  );
+  expect(overflow).toBeLessThanOrEqual(1);
 });

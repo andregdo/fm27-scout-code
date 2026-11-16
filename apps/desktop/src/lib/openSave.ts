@@ -22,7 +22,11 @@ export function useOpenSave() {
 
   const openPath = useCallback(
     async (path: string, force = false) => {
-      const pendingCount = Object.keys(useAppStore.getState().pendingEdits).length;
+      const state = useAppStore.getState();
+      const pendingCount = new Set([
+        ...Object.keys(state.pendingEdits),
+        ...Object.keys(state.pendingTransfers),
+      ]).size;
       if (pendingCount > 0) {
         const message = t("pending.discardBeforeOpen", { count: pendingCount });
         const confirmed = isTauri

@@ -2,10 +2,11 @@
 
 ## Security boundaries
 
-- Read commands and default browsing are read-only. The desktop edit, club-edit
-  and transfer dialogs, and the optional `edit`, `edit-club` and `transfer` CLI
-  subcommands write a **new** save file, refuse to overwrite their source, and
-  verify the result by re-parsing it.
+- Read commands and default browsing are read-only. The desktop player-edit and
+  transfer dialogs stage changes; the pending-changes dialog writes one new save
+  for all of them. The club-edit dialog and the optional `edit`, `edit-club` and
+  `transfer` CLI subcommands write a **new** save file, refuse to overwrite their
+  source, and verify the result by re-parsing it.
 - Never reads game memory or injects into game processes.
 - Does not enable Tauri `shell` / arbitrary filesystem plugins; only files
   selected by the user are used.
@@ -106,13 +107,17 @@
   (release fees, extension options, bonuses) are read-only. FM may recalculate
   club wage totals and budgets after a wage edit.
 - Transfers are experimental and available from the CLI and the desktop
-  **Transfer** dialog. They move a player with one current contract between two
-  senior teams whose stored player lists validate. They clear the old squad
-  number but do not assign a new one (the club does after loading), create
-  transfer-fee history, move money, edit saved tactics or start loans, and they
-  do not sign free agents. A simple permanent move loaded
+  **Transfer** dialog. The dialog stages a move as a pending change, and
+  **Pending changes** writes all staged player edits and transfers into one new
+  save. Transfers move a player with one current contract between two senior
+  teams whose stored player lists validate. They clear the old squad number but
+  do not assign a new one (the club does after loading), create transfer-fee
+  history, move money, edit saved tactics or start loans, and they do not sign
+  free agents. A simple permanent move loaded
   normally in FM27 on `27.0.0+2486695` and `27.0.1+2503222`, and the player
-  appeared at the new club; captaincy, listing and saved-selection cases have not
+  appeared at the new club; a batch combining player edits with several moves is
+  mechanically verified but has not been separately loaded in game. Captaincy,
+  listing and saved-selection cases have not
   been separately audited, and the new club's squad-number screen was not checked. Validate every test save in FM27 before relying on it, and
   keep the source save backed up.
 - Windows/Linux builds are not available yet.

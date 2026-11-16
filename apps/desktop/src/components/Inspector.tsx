@@ -61,6 +61,7 @@ export function Inspector() {
   const setEditOpen = useAppStore((state) => state.setEditOpen);
   const setTransferOpen = useAppStore((state) => state.setTransferOpen);
   const pendingEdits = useAppStore((state) => state.pendingEdits);
+  const pendingTransfers = useAppStore((state) => state.pendingTransfers);
   const setViewMode = useAppStore((state) => state.setViewMode);
   const setSelectedClubUid = useAppStore((state) => state.setSelectedClubUid);
   const pushToast = useAppStore((state) => state.pushToast);
@@ -180,12 +181,12 @@ export function Inspector() {
       className="flex h-full w-[372px] shrink-0 flex-col border-l border-[var(--line)] bg-[var(--surface)]"
       style={tabBarWidth > 0 ? { minWidth: tabBarWidth } : undefined}
     >
-      <div className="flex items-center justify-between border-b border-[var(--line)] px-3 py-2">
-        <div className="flex items-center gap-2 text-[11px] font-semibold text-[var(--muted)]">
+      <div className="flex items-center justify-between gap-2 border-b border-[var(--line)] px-3 py-2">
+        <div className="flex shrink-0 items-center gap-2 whitespace-nowrap text-[11px] font-semibold text-[var(--muted)]">
           <ClipboardList size={13} className="text-[var(--accent)]" />
           {t("inspector.profile")}
         </div>
-        <div className="flex items-center gap-1">
+        <div className="flex shrink-0 items-center gap-1">
           {dataMode === "full" && (
             <>
               <Button
@@ -285,7 +286,7 @@ export function Inspector() {
                     {player.gender === 1 && (
                       <Badge tone="blue">{t("inspector.womenBadge")}</Badge>
                     )}
-                    {pendingEdits[player.uid] && (
+                    {(pendingEdits[player.uid] || pendingTransfers[player.uid]) && (
                       <Badge tone="gold">{t("pending.badge")}</Badge>
                     )}
                   </div>

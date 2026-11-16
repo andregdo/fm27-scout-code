@@ -5,27 +5,27 @@ import {
   Check,
   Loader2,
   Search,
-  ShieldCheck,
 } from "lucide-react";
-import { pickEditOutputFile, previewTransfer, transferPlayer } from "@/lib/api";
-import { useOpenSave } from "@/lib/openSave";
+import { previewTransfer } from "@/lib/api";
+import { nationLabel } from "@/lib/labels";
 import { usePlayerDetail, useTransferClubs } from "@/lib/query";
-import type { ClubRow, TransferChange, TransferResult } from "@/lib/types";
-import { cn, suggestedTransferredSavePath } from "@/lib/utils";
+import type { ClubRow, TransferChange } from "@/lib/types";
+import { cn } from "@/lib/utils";
 import { useI18n } from "@/lib/useI18n";
 import { useAppStore } from "@/store/app";
 import { Button, Input, Modal } from "./ui";
 
 export function TransferDialog() {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const open = useAppStore((state) => state.transferOpen);
   const setOpen = useAppStore((state) => state.setTransferOpen);
   const saveId = useAppStore((state) => state.saveId);
   const summary = useAppStore((state) => state.summary);
   const selectedUid = useAppStore((state) => state.selectedUid);
   const pendingEdits = useAppStore((state) => state.pendingEdits);
+  const pendingTransfers = useAppStore((state) => state.pendingTransfers);
+  const stageTransfer = useAppStore((state) => state.stageTransfer);
   const pushToast = useAppStore((state) => state.pushToast);
-  const { openPath } = useOpenSave();
   const { data: player, isLoading } = usePlayerDetail(open ? selectedUid : null);
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
@@ -33,9 +33,6 @@ export function TransferDialog() {
   const [plan, setPlan] = useState<TransferChange | null>(null);
   const [previewing, setPreviewing] = useState(false);
   const [planError, setPlanError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [result, setResult] = useState<TransferResult | null>(null);
   const requestId = useRef(0);
 
   const clubsQuery = useTransferClubs(
@@ -47,6 +44,7 @@ export function TransferDialog() {
     (club) => club.uid !== player?.club_uid,
   );
   const pendingEdit = player ? pendingEdits[player.uid] : undefined;
+  const pendingTransfer = player ? pendingTransfers[player.uid] : undefined;
 
   useEffect(() => {
     const timer = window.setTimeout(() => setDebouncedSearch(search), 250);
@@ -63,9 +61,6 @@ export function TransferDialog() {
     setPlan(null);
     setPreviewing(false);
     setPlanError(null);
-    setBusy(false);
-    setError(null);
-    setResult(null);
   }, [open, selectedUid]);
 
   const chooseDestination = async (club: ClubRow) => {
@@ -73,7 +68,6 @@ export function TransferDialog() {
     setDestination(club);
     setPlan(null);
     setPlanError(null);
-    setError(null);
     setPreviewing(true);
     const request = ++requestId.current;
     try {
@@ -86,34 +80,32 @@ export function TransferDialog() {
     }
   };
 
-  const save = async () => {
-    if (saveId == null || !player || !destination || !plan) return;
+  const stage = () => {
+    if (!player || !destination || !plan) return;
     if (plan.to_club_uid !== destination.uid) return;
-    const output = await pickEditOutputFile(
-      suggestedTransferredSavePath(summary?.path, summary?.save_name),
-    );
-    if (!output) return;
-    setBusy(true);
-    setError(null);
-    try {
-      const written = await transferPlayer(saveId, player.uid, destination.uid, output);
-      setResult(written);
-      pushToast({
-        title: t("transfer.done"),
-        description: written.output,
-        tone: "success",
-      });
-    } catch (writeError) {
-      const message = String(writeError);
-      setError(message);
-      pushToast({ title: t("transfer.failed"), description: message, tone: "error" });
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const close = () => {
-    if (!busy) setOpen(false);
+    const name = player.name ?? t("common.unnamedPlayer");
+    stageTransfer({
+      uid: player.uid,
+      name,
+      from_club_name: plan.from_club_name,
+      to_club_name: plan.to_club_name,
+      to_club_uid: plan.to_club_uid,
+      squad_number_before: plan.squad_number_before,
+      listing_cleared: plan.changes.some(
+        (change) => change.field === "contract.listing",
+      ),
+      captaincy_cleared: plan.captaincy_cleared,
+      changes: plan.changes,
+    });
+    pushToast({
+      title: t("transfer.staged"),
+      description: t("transfer.stagedDescription", {
+        name,
+        club: plan.to_club_name,
+      }),
+      tone: "success",
+    });
+    setOpen(false);
   };
 
   const contractRestarts = plan?.changes.some(
@@ -123,7 +115,7 @@ export function TransferDialog() {
   return (
     <Modal
       open={open}
-      onClose={close}
+      onClose={() => setOpen(false)}
       title={t("transfer.title")}
       description={
         player
@@ -132,77 +124,29 @@ export function TransferDialog() {
       }
       width="max-w-[720px]"
       footer={
-        result ? (
-          <>
-            <Button variant="ghost" size="sm" onClick={close}>
-              {t("common.close")}
-            </Button>
-            <Button
-              variant="primary"
-              size="sm"
-              onClick={() => {
-                setOpen(false);
-                void openPath(result.output, true);
-              }}
-            >
-              {t("transfer.open")}
-            </Button>
-          </>
-        ) : (
-          <>
-            <Button variant="ghost" size="sm" onClick={close} disabled={busy}>
-              {t("common.cancel")}
-            </Button>
-            <Button
-              variant="primary"
-              size="sm"
-              onClick={() => void save()}
-              disabled={busy || !plan || plan.to_club_uid !== destination?.uid}
-            >
-              {busy ? (
-                <Loader2 size={13} className="animate-spin" />
-              ) : (
-                <ArrowRightLeft size={13} />
-              )}
-              {busy ? t("transfer.saving") : t("transfer.save")}
-            </Button>
-          </>
-        )
+        <>
+          <Button variant="ghost" size="sm" onClick={() => setOpen(false)}>
+            {t("common.cancel")}
+          </Button>
+          <Button
+            variant="primary"
+            size="sm"
+            onClick={stage}
+            disabled={!plan || plan.to_club_uid !== destination?.uid}
+          >
+            <ArrowRightLeft size={13} />
+            {t("transfer.stage")}
+          </Button>
+        </>
       }
     >
-      {result ? (
-        <div className="flex flex-col items-center gap-3 px-6 py-10 text-center">
-          <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-[var(--accent-line)] bg-[var(--accent-soft)] text-[var(--accent-strong)]">
-            <ShieldCheck size={22} />
-          </div>
-          <div className="text-sm font-semibold text-[var(--ink)]">
-            {t("transfer.successTitle")}
-          </div>
-          <div className="max-w-full break-all text-[11px] text-[var(--muted)]">
-            {result.output}
-          </div>
-          <div className="text-[10px] text-[var(--muted)]">
-            {t("transfer.successSummary", {
-              from: result.transfer.from_club_name,
-              to: result.transfer.to_club_name,
-            })}
-          </div>
-          <div className="max-w-md text-[10px] leading-relaxed text-[var(--muted)]">
-            {t("transfer.successNote")}
-          </div>
-        </div>
-      ) : !player ? (
+      {!player ? (
         <div className="flex items-center justify-center py-10 text-[11px] text-[var(--muted)]">
           <Loader2 size={14} className="mr-2 animate-spin" />
           {isLoading ? t("transfer.loadingPlayer") : t("edit.noPlayer")}
         </div>
       ) : (
         <div className="space-y-4 p-5">
-          {error && (
-            <div className="rounded-lg border border-[var(--danger-line)] bg-[var(--danger-soft)] px-3 py-2 text-[11px] text-[var(--danger)]">
-              {error}
-            </div>
-          )}
           <div className="flex items-start gap-2 rounded-lg border border-[var(--gold-line)] bg-[var(--gold-soft)] px-3 py-2 text-[10px] leading-relaxed text-[var(--gold)]">
             <AlertTriangle size={13} className="mt-0.5 shrink-0" />
             <span>{t("transfer.riskWarning")}</span>
@@ -223,9 +167,16 @@ export function TransferDialog() {
             </div>
           </div>
 
-          {pendingEdit && (
-            <div className="rounded-lg border border-[var(--line)] bg-[var(--surface-2)] px-3 py-2 text-[10px] leading-relaxed text-[var(--muted)]">
-              {t("transfer.pendingNote")}
+          {(pendingEdit || pendingTransfer) && (
+            <div className="space-y-1 rounded-lg border border-[var(--line)] bg-[var(--surface-2)] px-3 py-2 text-[10px] leading-relaxed text-[var(--muted)]">
+              {pendingEdit && <div>{t("transfer.pendingNote")}</div>}
+              {pendingTransfer && (
+                <div>
+                  {t("transfer.alreadyStaged", {
+                    club: pendingTransfer.to_club_name,
+                  })}
+                </div>
+              )}
             </div>
           )}
 
@@ -276,7 +227,10 @@ export function TransferDialog() {
                           {club.name}
                         </div>
                         <div className="truncate text-[9px] text-[var(--muted)]">
-                          {[club.nation_name, club.league_name]
+                          {[
+                            nationLabel(club.nation_name, locale),
+                            club.league_name,
+                          ]
                             .filter((value): value is string => Boolean(value))
                             .join(" · ")}
                           {club.player_count > 0 &&

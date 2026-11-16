@@ -23,7 +23,7 @@ use crate::layout::{
 use crate::metadata::SaveMetadata;
 use crate::model::Player;
 use crate::names::NamePools;
-use crate::parse::closing_person_header;
+use crate::parse::{ParsedSave, closing_person_header};
 use crate::persons::{ClubLookup, PersonDecoder, PersonLocation};
 use crate::player_scan::{PlayerRecord, PlayerRecords};
 use crate::roster;
@@ -70,6 +70,15 @@ impl TransferChange {
     pub fn verify_save(&self, path: impl AsRef<Path>) -> Result<()> {
         let path = path.as_ref();
         let parsed = crate::parse::parse_save(path)?;
+        let save = SaveFile::open(path)?;
+        let metadata = crate::metadata::read_metadata(&save)?;
+        let editor = PlayerEditor::open(&save, &metadata)?;
+        self.verify(&parsed, &editor)
+    }
+
+    /// Verify the move against an already parsed save and its editor. Batch
+    /// writers use this to verify every transfer after a single re-parse.
+    pub fn verify(&self, parsed: &ParsedSave, editor: &PlayerEditor) -> Result<()> {
         let player = parsed
             .players
             .iter()
@@ -111,9 +120,6 @@ impl TransferChange {
             )));
         }
 
-        let save = SaveFile::open(path)?;
-        let metadata = crate::metadata::read_metadata(&save)?;
-        let editor = PlayerEditor::open(&save, &metadata)?;
         let old_roster = editor.team_roster(self.from_team_id, self.from_club_uid)?;
         let new_roster = editor.team_roster(self.to_team_id, self.to_club_uid)?;
         if old_roster.contains(&self.player_index) {
@@ -412,6 +418,22 @@ impl PlayerEditor {
         self.game_db
     }
 
+    /// Rebuild the player and person indexes after an edit changed byte offsets
+    /// inside `game_db`. Team-list splices move every record after the affected
+    /// list, so a batch must rescan before it touches another player.
+    fn rebuild_indexes(&mut self) -> Result<()> {
+        self.names = NamePools::locate(&self.game_db)?;
+        self.records = PlayerRecords::locate(&self.game_db, self.names.end_offset)?;
+        self.pindexes = self
+            .records
+            .records
+            .iter()
+            .map(|record| record.pindex)
+            .collect();
+        self.person_locations.clear();
+        Ok(())
+    }
+
     pub fn changes(&self) -> &[EditChange] {
         &self.changes
     }
@@ -508,8 +530,9 @@ impl PlayerEditor {
     /// rewrites the player's team and club join date, the contract's team and start
     /// date, clears the transfer/loan listing bits, removes the player from the old
     /// team's player list and appends the player to the new one. It clears a captain
-    /// or vice-captain reference held at the old team. Wages, contract end, squad
-    /// status and squad number are left as they are.
+    /// or vice-captain reference held at the old team. Wages, contract end and squad
+    /// status are left as they are; an assigned squad number is cleared because the
+    /// new club cannot inherit the old number.
     pub fn transfer(&mut self, uid: u32, to_club_uid: u32) -> Result<TransferChange> {
         let record = self.require_record(uid)?;
         let player_team = read_u32(&self.game_db, record.offset + PlayerLayout::TEAM_ID_OFFSET)
@@ -653,6 +676,10 @@ impl PlayerEditor {
         }
         let roster_change =
             roster::apply_transfer(&mut self.game_db, player_index, &from_list, &to_list)?;
+        // The roster splice moved bytes after both team records. Rebuild the
+        // indexes so another staged move in the same batch starts from the
+        // current layout.
+        self.rebuild_indexes()?;
         self.edited_uids.insert(uid);
 
         let start_before = location.start;

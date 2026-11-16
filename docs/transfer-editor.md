@@ -81,7 +81,9 @@ club:
   moved from Parma to Juventus.
 
 This confirms save-level acceptance for a simple permanent move. It was not a per-screen
-audit of squad numbers, saved selections or transfer history.
+audit of squad numbers, saved selections or transfer history. The batch path that stages one
+player edit and two transfers into the same destination is mechanically verified by
+re-parsing the output, but that multi-move save has not been separately loaded in game.
 
 ## CLI
 
@@ -103,11 +105,19 @@ In the player profile, **Transfer** opens a dialog that:
    editor and writing nothing;
 3. shows both squad counts, the contract restart date, and whether listing, captaincy or
    squad number was cleared;
-4. writes and verifies a new save copy through **Write transferred save…**.
+4. stages the move through **Add to pending changes** instead of writing a save.
 
-The preview and write use the `preview_transfer` and `transfer_player` Tauri commands; the
-dialog works in browser mock mode with synthetic data. A staged player edit for the same
-player is called out in the dialog, because the transfer save does not include it.
+Staged transfers appear in **Pending changes** together with staged player edits. **Save
+all to a copy…** writes one new save containing every staged edit and transfer. The batch
+applies all fixed-width player edits first, then each transfer in turn; because a team-list
+splice moves later bytes, the editor rebuilds its player and person indexes after every
+move. The written save is re-parsed once and every edit and transfer is verified before the
+output is accepted.
+
+The preview uses the `preview_transfer` Tauri command; the batch writer uses
+`save_pending_changes`. The dialog works in browser mock mode with synthetic data. A staged
+player edit for the same player is called out in the dialog because both are written
+together.
 
 ## Verification
 
@@ -120,7 +130,10 @@ The command checks the new save by:
 5. checking the squad number is clear (`0` or `255`).
 
 It also asserts that `game_db` keeps its length. Removal of the output follows any failed
-check.
+check. A batch save verifies every transfer against the same re-parsed result and a single
+opened editor, then removes the output if any edit or move fails verification. The ignored
+real-save desktop test stages one PA edit and two transfers into the same destination and
+checks all three after re-parsing the output.
 
 This proves the save is internally consistent for the fields the editor models, and the
 in-game test above now confirms that the game accepts a simple permanent move. The general

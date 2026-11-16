@@ -2,7 +2,7 @@ import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { writeText as writeClipboardText } from "@tauri-apps/plugin-clipboard-manager";
 import { open, save } from "@tauri-apps/plugin-dialog";
 import type {
-  BatchEditResult,
+  BatchSaveResult,
   CaEstimate,
   CaEstimateRequest,
   ClubDetail,
@@ -39,8 +39,8 @@ import type {
   SquadNeedsRequest,
   StatsMoneyballRequest,
   TraitOption,
+  TransferBatch,
   TransferChange,
-  TransferResult,
   ValueFinderPage,
   ValueFinderRequest,
 } from "./types";
@@ -69,7 +69,6 @@ import {
   mockSquadNeeds,
   mockStatsMoneyball,
   mockTransferPlan,
-  mockTransferResult,
   mockValueFinder,
 } from "./mock";
 
@@ -244,41 +243,42 @@ export async function previewTransfer(
   return timedInvoke<TransferChange>("preview_transfer", { saveId, uid, toClubUid });
 }
 
-export async function transferPlayer(
-  saveId: number,
-  uid: number,
-  toClubUid: number,
-  outputPath: string,
-): Promise<TransferResult> {
-  if (!isTauri) return mockTransferResult(uid, toClubUid, outputPath);
-  return timedInvoke<TransferResult>("transfer_player", {
-    saveId,
-    uid,
-    toClubUid,
-    outputPath,
-  });
-}
-
-export async function savePlayerEdits(
+export async function savePendingChanges(
   saveId: number,
   outputPath: string,
   edits: PlayerEditBatch[],
-): Promise<BatchEditResult> {
+  transfers: TransferBatch[],
+): Promise<BatchSaveResult> {
   if (!isTauri) {
-    const changes = edits.reduce(
-      (total, edit) =>
-        total +
-        (edit.request.ca != null ? 1 : 0) +
-        (edit.request.pa != null ? 1 : 0) +
-        edit.request.attributes.length +
-        edit.request.personality.length +
-        edit.request.traits.length +
-        edit.request.untraits.length,
-      0,
-    );
-    return { output: outputPath, file_size: 0, players: edits.length, changes };
+    const changes =
+      edits.reduce(
+        (total, edit) =>
+          total +
+          (edit.request.ca != null ? 1 : 0) +
+          (edit.request.pa != null ? 1 : 0) +
+          edit.request.attributes.length +
+          edit.request.personality.length +
+          edit.request.traits.length +
+          edit.request.untraits.length +
+          (edit.request.wage != null ? 1 : 0) +
+          (edit.request.contract_end != null ? 1 : 0),
+        0,
+      ) +
+      transfers.length;
+    return {
+      output: outputPath,
+      file_size: 0,
+      players: edits.length,
+      transfers: transfers.length,
+      changes,
+    };
   }
-  return timedInvoke<BatchEditResult>("save_player_edits", { saveId, outputPath, edits });
+  return timedInvoke<BatchSaveResult>("save_pending_changes", {
+    saveId,
+    outputPath,
+    edits,
+    transfers,
+  });
 }
 
 export async function getTraitOptions(): Promise<TraitOption[]> {

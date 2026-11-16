@@ -70,7 +70,7 @@ const en = {
   "toolbar.analysis": "Analysis centre",
   "toolbar.analysisShort": "Analysis",
   "toolbar.export": "Export",
-  "toolbar.pending": "Pending edits",
+  "toolbar.pending": "Pending changes",
   "toolbar.pendingShort": "Pending",
   "toolbar.settings": "Settings",
   "toolbar.help": "About & help",
@@ -822,23 +822,28 @@ const en = {
   "toast.nameCopied": "Name copied",
   "toast.copyFailed": "Could not copy to clipboard",
 
-  // Pending edits
-  "pending.title": "Pending edits",
+  // Pending changes
+  "pending.title": "Pending changes",
   "pending.badge": "Pending",
-  "pending.description": "Review staged player edits and write them all into one new save file.",
-  "pending.empty": "No pending edits.",
+  "pending.description": "Review staged player edits and transfers, then write them all into one new save file.",
+  "pending.empty": "No pending changes.",
   "pending.summary": "{players} players · {changes} changes",
-  "pending.hint": "One new save file for all players",
+  "pending.summaryTransfers": "{players} players · {transfers} transfers · {changes} changes",
+  "pending.hint": "One new save file for all changes",
   "pending.changeCount": "{count} changes",
   "pending.remove": "Remove",
   "pending.removeAll": "Discard all",
   "pending.save": "Save all to a copy…",
   "pending.saving": "Writing save…",
-  "pending.successTitle": "Pending edits written",
+  "pending.successTitle": "Pending changes written",
   "pending.successDescription": "{path}",
   "pending.open": "Open edited save",
+  "pending.transfers": "Transfers",
+  "pending.playerEdits": "Player edits",
+  "pending.transfer": "Transfer",
+  "pending.squadNumberCleared": "#{number} cleared",
   "pending.note":
-    "All staged players are written together in one pass. Existing output files are not overwritten; the source save is never modified. Pending edits live only in this session, so save them before quitting.",
+    "All staged player edits and transfers are written together in one pass. Existing output files are not overwritten; the source save is never modified. Pending changes live only in this session, so save them before quitting.",
   "pending.riskWarning":
     "This step writes a new save file. If the output is corrupted or the game cannot read it, the source save remains untouched. Keep a backup and verify the output in game before relying on it.",
   "pending.added": "added",
@@ -846,13 +851,13 @@ const en = {
   "pending.wage": "Weekly wage",
   "pending.contractEnd": "Contract end",
   "pending.discardBeforeOpen":
-    "You have {count} pending player edits. Opening another save will discard them. Continue?",
+    "You have {count} pending changes. Opening another save will discard them. Continue?",
 
   // Player editor
   "inspector.edit": "Edit",
   "inspector.transfer": "Transfer",
   "edit.title": "Edit player",
-  "edit.description": "Changes are staged per player; save all pending edits together to a new file.",
+  "edit.description": "Changes are staged per player; save all pending changes together to a new file.",
   "edit.tab.ability": "Ability",
   "edit.tab.contract": "Contract",
   "edit.tab.attributes": "Attributes",
@@ -939,10 +944,10 @@ const en = {
   "edit.invalidAttribute": "Attributes must be between 1 and 100.",
   "edit.invalidPersonality": "Personality values must be between 1 and 20.",
   "edit.outputHint":
-    "Edits are staged on this player. When you are done, use Pending edits in the toolbar to save every staged player into one new .fm file.",
+    "Edits are staged on this player. When you are done, use Pending changes in the toolbar to save every staged player and transfer into one new .fm file.",
   "edit.riskWarning":
     "Experimental save editing: a malformed or unsupported edit can corrupt the output save or make it unreadable. Back up the source save, close Football Manager before writing, and keep the edited save as a separate file. Use at your own risk.",
-  "edit.stage": "Add to pending edits",
+  "edit.stage": "Add to pending changes",
   "edit.saveCopy": "Save a copy…",
   "edit.saving": "Writing save…",
   "edit.successTitle": "Edited save written",
@@ -954,7 +959,7 @@ const en = {
   // Transfer
   "transfer.title": "Move player",
   "transfer.description":
-    "Send a contracted player to another club's senior team in a new save copy.",
+    "Send a contracted player to another club's senior team. The move is saved with your other pending changes.",
   "transfer.currentClub": "Currently at {club}",
   "transfer.destination": "Destination club",
   "transfer.searchClubs": "Search clubs…",
@@ -966,9 +971,11 @@ const en = {
   "transfer.guardHint":
     "Only a contracted senior-team player can move, and the contract must match the club. Free agents, loans, future contracts and clubs without a stored squad are refused.",
   "transfer.riskWarning":
-    "Experimental transfer: the edit writes a new save copy and never changes the source save. Back up the source, close Football Manager before writing, and load the copy to verify the move.",
+    "Experimental transfer: staged moves are written into the same new save copy as your other pending changes. The source save is never changed. Back up the source, close Football Manager before writing, and load the copy to verify the move.",
   "transfer.pendingNote":
-    "This player also has staged attribute or contract edits. The transferred save does not include them.",
+    "This player also has staged player edits; both are written to the same new save.",
+  "transfer.alreadyStaged":
+    "A move to {club} is already staged; choosing another club replaces it.",
   "transfer.planTitle": "Preview",
   "transfer.from": "From",
   "transfer.to": "To",
@@ -979,15 +986,10 @@ const en = {
   "transfer.squadNumberCleared":
     "Squad number {number} cleared; the new club assigns one after loading.",
   "transfer.noFee": "No fee or transfer history is written.",
-  "transfer.save": "Write transferred save…",
-  "transfer.saving": "Writing and verifying…",
-  "transfer.done": "Transfer saved and verified.",
-  "transfer.failed": "Transfer failed",
-  "transfer.successTitle": "Transferred save written",
-  "transfer.successSummary": "{from} → {to}",
-  "transfer.successNote":
-    "The new save was re-parsed and every written field was verified. Load it in Football Manager and advance several days to confirm the game keeps the move.",
-  "transfer.open": "Open transferred save",
+  "transfer.stage": "Add to pending changes",
+  "transfer.staged": "Transfer staged",
+  "transfer.stagedDescription":
+    "{name} → {club} · saved with pending changes",
 
   // Scouting
   "analysis.tab.scout": "Scouting",
@@ -1919,10 +1921,11 @@ const zhCN: Record<TranslationKey, string> = {
 
   "pending.title": "待保存修改",
   "pending.badge": "待保存",
-  "pending.description": "检查已暂存的球员修改，最后统一写入一个新存档。",
+  "pending.description": "检查已暂存的球员修改和转会，最后统一写入一个新存档。",
   "pending.empty": "没有待保存修改。",
   "pending.summary": "{players} 名球员 · {changes} 项修改",
-  "pending.hint": "所有球员写入同一个新存档",
+  "pending.summaryTransfers": "{players} 名球员 · {transfers} 次转会 · {changes} 项修改",
+  "pending.hint": "所有修改写入同一个新存档",
   "pending.changeCount": "{count} 项修改",
   "pending.remove": "移除",
   "pending.removeAll": "全部放弃",
@@ -1931,8 +1934,12 @@ const zhCN: Record<TranslationKey, string> = {
   "pending.successTitle": "待保存修改已写入",
   "pending.successDescription": "{path}",
   "pending.open": "打开编辑后的存档",
+  "pending.transfers": "转会",
+  "pending.playerEdits": "球员修改",
+  "pending.transfer": "转会",
+  "pending.squadNumberCleared": "清除号码 {number}",
   "pending.note":
-    "所有暂存球员会在一次写入中保存到同一个新文件。已有输出文件不会被覆盖，源存档不会被修改。待保存修改只存在于当前会话，退出应用前请先保存。",
+    "所有暂存的球员修改和转会会在一次写入中保存到同一个新文件。已有输出文件不会被覆盖，源存档不会被修改。待保存修改只存在于当前会话，退出应用前请先保存。",
   "pending.riskWarning":
     "这一步会写入一个全新的存档文件。如果输出文件损坏或游戏无法读取，源存档不会被影响；请保留备份，并在游戏内验证输出文件后再使用。",
   "pending.added": "添加",
@@ -2029,7 +2036,7 @@ const zhCN: Record<TranslationKey, string> = {
   "edit.invalidAttribute": "属性必须在 1–100 之间。",
   "edit.invalidPersonality": "性格值必须在 1–20 之间。",
   "edit.outputHint":
-    "修改会暂存在该球员上；全部编辑完成后，用工具栏的待保存按钮统一另存为一个新 .fm 文件。",
+    "修改会暂存在该球员上；全部编辑完成后，用工具栏的待保存修改统一另存为一个新 .fm 文件。",
   "edit.riskWarning":
     "实验性存档编辑：错误或不兼容的修改可能导致输出存档损坏、游戏无法读取或球员数据异常。请备份源存档，写入前退出 Football Manager，并将编辑结果保存为独立的新文件。使用风险自负。",
   "edit.stage": "加入待保存修改",
@@ -2043,7 +2050,7 @@ const zhCN: Record<TranslationKey, string> = {
 
   // 转会
   "transfer.title": "球员转会",
-  "transfer.description": "把有合同的球员转到另一家俱乐部的一线队，并写入新存档副本。",
+  "transfer.description": "把有合同的球员转到另一家俱乐部的一线队；转会和其它待保存修改会写入同一个新存档。",
   "transfer.currentClub": "当前俱乐部：{club}",
   "transfer.destination": "目标俱乐部",
   "transfer.searchClubs": "搜索俱乐部…",
@@ -2055,8 +2062,9 @@ const zhCN: Record<TranslationKey, string> = {
   "transfer.guardHint":
     "仅支持有当前合同的一线队球员，且合同必须与所在俱乐部一致。自由球员、租借、未来合同和没有存储阵容的俱乐部会被拒绝。",
   "transfer.riskWarning":
-    "实验性转会：修改会写入新存档副本，源存档不会被修改。请先备份源存档，写入前退出 Football Manager，并加载副本验证转会。",
-  "transfer.pendingNote": "该球员还有待保存的属性或合同修改；转会存档不会包含这些修改。",
+    "实验性转会：暂存的转会会和其他修改一起写入新存档副本，源存档不会被修改。请先备份源存档，写入前退出 Football Manager，并加载副本验证转会。",
+  "transfer.pendingNote": "该球员还有待保存的球员修改；两者会写入同一个新存档。",
+  "transfer.alreadyStaged": "已暂存转往 {club} 的转会；选择其他俱乐部会替换它。",
   "transfer.planTitle": "预览",
   "transfer.from": "原俱乐部",
   "transfer.to": "新俱乐部",
@@ -2066,15 +2074,9 @@ const zhCN: Record<TranslationKey, string> = {
   "transfer.captaincyCleared": "已清除队长/副队长身份",
   "transfer.squadNumberCleared": "已清除球衣号码 {number}；新俱乐部会在加载后分配号码。",
   "transfer.noFee": "不会写入转会费或转会历史。",
-  "transfer.save": "写入转会存档…",
-  "transfer.saving": "正在写入并验证…",
-  "transfer.done": "转会已保存并验证。",
-  "transfer.failed": "转会失败",
-  "transfer.successTitle": "转会存档已写入",
-  "transfer.successSummary": "{from} → {to}",
-  "transfer.successNote":
-    "新存档已重新解析，所有写入字段都已验证。请在 Football Manager 中加载它并推进数日，确认游戏保留了这次转会。",
-  "transfer.open": "打开转会后的存档",
+  "transfer.stage": "加入待保存修改",
+  "transfer.staged": "转会已暂存",
+  "transfer.stagedDescription": "{name} → {club} · 将和其他修改一起保存",
 
   // 球探
   "analysis.tab.scout": "球探",
