@@ -44,8 +44,11 @@ fn transfers_a_simple_player_and_verifies_the_roster() {
                 && editor
                     .team_roster(team_id, club_uid)
                     .is_ok_and(|roster| roster.len() >= 2)
+                && editor
+                    .squad_number(player.uid)
+                    .is_ok_and(|number| number.is_some())
         })
-        .expect("a player with a simple current contract and a team-mate");
+        .expect("a player with a simple current contract, a team-mate and a squad number");
     let from_club_uid = player.club_uid.expect("the player has a club");
     let from_team_id = player.team_id.expect("the player has a team");
     let from_gender = player.gender;
@@ -64,11 +67,19 @@ fn transfers_a_simple_player_and_verifies_the_roster() {
         })
         .expect("a destination club with a stored player list");
 
+    let squad_number_before = editor
+        .squad_number(player.uid)
+        .expect("read the squad number");
+    assert!(
+        squad_number_before.is_some(),
+        "the selected player must wear a squad number"
+    );
     let change = editor
         .transfer(player.uid, destination.0)
         .expect("plan and apply the transfer");
     editor.validate().expect("validate edited player");
     assert_eq!(change.to_team_id, destination.1);
+    assert_eq!(change.squad_number_before, squad_number_before);
 
     let directory = tempfile::tempdir().expect("temporary directory");
     let output = directory.path().join("transferred.fm");
@@ -112,17 +123,24 @@ fn transfers_a_simple_player_and_verifies_the_roster() {
     let player_index = change.player_index;
     assert!(!old_roster.contains(&player_index));
     assert!(new_roster.contains(&player_index));
+    assert_eq!(
+        verify_editor
+            .squad_number(player.uid)
+            .expect("read the new squad number"),
+        None
+    );
     change
         .verify_save(&output)
         .expect("verify the written transfer through the shared helper");
 
     println!(
-        "transferred {} (uid {}) from club {} team {} to club {} team {}",
+        "transferred {} (uid {}) from club {} team {} to club {} team {}; squad number {:?} cleared",
         player.name.as_deref().unwrap_or("<unnamed>"),
         player.uid,
         from_club_uid,
         from_team_id,
         destination.0,
-        destination.1
+        destination.1,
+        squad_number_before
     );
 }

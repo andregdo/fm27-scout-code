@@ -56,6 +56,8 @@ pub struct TransferChange {
     pub to_players_before: usize,
     pub to_players_after: usize,
     pub captaincy_cleared: bool,
+    /// The squad number the player wore at the old club, if any.
+    pub squad_number_before: Option<u8>,
     pub changes: Vec<EditChange>,
 }
 
@@ -124,6 +126,12 @@ impl TransferChange {
             return Err(Error::parse(format!(
                 "the new team does not list player index {}",
                 self.player_index
+            )));
+        }
+        if let Some(number) = editor.squad_number(self.uid)? {
+            return Err(Error::parse(format!(
+                "player uid {} still wears squad number {number}",
+                self.uid
             )));
         }
         Ok(())
@@ -468,6 +476,31 @@ impl PlayerEditor {
         Ok(roster::find_team_list(&self.game_db, team_id, Some(club_uid), &self.pindexes)?.players)
     }
 
+    /// The player's squad number on the current contract, if one is assigned.
+    pub fn squad_number(&self, uid: u32) -> Result<Option<u8>> {
+        let location = self.current_contract_location(uid)?;
+        self.squad_number_at(location.tag_offset)
+    }
+
+    fn squad_number_offset(tag_offset: usize) -> Result<usize> {
+        tag_offset
+            .checked_add_signed(ContractLayout::SQUAD_NUMBER_OFFSET as isize)
+            .ok_or_else(|| Error::parse("the contract squad-number offset underflows"))
+    }
+
+    fn squad_number_at(&self, tag_offset: usize) -> Result<Option<u8>> {
+        let at = Self::squad_number_offset(tag_offset)?;
+        let value = read_u8(&self.game_db, at)
+            .ok_or_else(|| Error::parse("the contract record ends before its squad number"))?;
+        match value {
+            0 | u8::MAX => Ok(None),
+            1..=99 => Ok(Some(value)),
+            other => Err(Error::parse(format!(
+                "the contract carries an invalid squad number {other}"
+            ))),
+        }
+    }
+
     /// Move a contracted player to another club's senior team.
     ///
     /// The player must have a single current permanent contract with the team the
@@ -571,6 +604,8 @@ impl PlayerEditor {
                 "player uid {uid} has offers or earlier contract records; only a single current contract is supported"
             )));
         }
+        let squad_number_at = Self::squad_number_offset(location.tag_offset)?;
+        let squad_number_before = self.squad_number_at(location.tag_offset)?;
 
         let team_at = record.offset + PlayerLayout::TEAM_ID_OFFSET;
         let join_at = record.offset + PlayerLayout::CLUB_JOIN_DATE_OFFSET;
@@ -613,6 +648,9 @@ impl PlayerEditor {
             .copy_from_slice(&to_team.to_le_bytes());
         self.game_db[start_at..start_at + 4].copy_from_slice(&start_encoded);
         self.game_db[listing_at] = listing_after;
+        if squad_number_before.is_some() {
+            self.game_db[squad_number_at] = u8::MAX;
+        }
         let roster_change =
             roster::apply_transfer(&mut self.game_db, player_index, &from_list, &to_list)?;
         self.edited_uids.insert(uid);
@@ -662,6 +700,15 @@ impl PlayerEditor {
                 None,
             ));
         }
+        if let Some(before) = squad_number_before {
+            changes.push(self.push_change_display(
+                "contract.squad_number",
+                i64::from(before),
+                i64::from(u8::MAX),
+                None,
+                None,
+            ));
+        }
         changes.push(self.push_change_display(
             "roster.from.players",
             roster_change.from_players_before as i64,
@@ -699,6 +746,7 @@ impl PlayerEditor {
             to_players_before: roster_change.to_players_before,
             to_players_after: roster_change.to_players_after,
             captaincy_cleared: roster_change.captaincy_cleared,
+            squad_number_before,
             changes,
         })
     }

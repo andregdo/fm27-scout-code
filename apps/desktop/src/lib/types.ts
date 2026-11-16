@@ -114,6 +114,8 @@ export interface TransferChange {
   to_players_before: number;
   to_players_after: number;
   captaincy_cleared: boolean;
+  /** Squad number worn at the old club, if one was assigned. */
+  squad_number_before: number | null;
   changes: EditChange[];
 }
 

@@ -406,6 +406,7 @@ export function mockTransferPlan(uid: number, toClubUid: number): TransferChange
   const fromTeam = 1_000_000 + from.uid;
   const toTeam = 1_000_000 + to.uid;
   const gameDate = MOCK_SUMMARY.game_date;
+  const squadNumber = (player.uid % 99) + 1;
   return {
     uid: player.uid,
     player_index: 50_000 + (player.uid % 10_000),
@@ -420,6 +421,7 @@ export function mockTransferPlan(uid: number, toClubUid: number): TransferChange
     to_players_before: to.player_count,
     to_players_after: to.player_count + 1,
     captaincy_cleared: false,
+    squad_number_before: squadNumber,
     changes: [
       {
         field: "club.uid",
@@ -444,6 +446,7 @@ export function mockTransferPlan(uid: number, toClubUid: number): TransferChange
         before_display: player.contract?.start ?? undefined,
         after_display: gameDate,
       },
+      { field: "contract.squad_number", before: squadNumber, after: 255 },
     ],
   };
 }

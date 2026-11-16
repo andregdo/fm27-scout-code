@@ -107,12 +107,13 @@
   club wage totals and budgets after a wage edit.
 - Transfers are experimental and available from the CLI and the desktop
   **Transfer** dialog. They move a player with one current contract between two
-  senior teams whose stored player lists validate. They do not create
-  transfer-fee history, move money, assign a squad number, edit saved tactics or
-  start loans, and they do not sign free agents. A simple permanent move loaded
+  senior teams whose stored player lists validate. They clear the old squad
+  number but do not assign a new one (the club does after loading), create
+  transfer-fee history, move money, edit saved tactics or start loans, and they
+  do not sign free agents. A simple permanent move loaded
   normally in FM27 on `27.0.0+2486695` and `27.0.1+2503222`, and the player
-  appeared at the new club; captaincy, listing, saved-selection and squad-number
-  cases have not been separately audited. Validate every test save in FM27 before relying on it, and
+  appeared at the new club; captaincy, listing and saved-selection cases have not
+  been separately audited, and the new club's squad-number screen was not checked. Validate every test save in FM27 before relying on it, and
   keep the source save backed up.
 - Windows/Linux builds are not available yet.
 - CI publishes an unsigned DMG; on first launch, use

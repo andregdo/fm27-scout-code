@@ -80,7 +80,8 @@ The transfer writes:
 - the player's `team_id` and club join date;
 - the in-effect contract's team id and start date (the wage, end date and squad status
   are kept);
-- the transfer/loan listing bits, which are cleared;
+- the transfer/loan listing bits and the current contract's squad number, which are cleared
+  (the new club assigns a number after loading);
 - the old and new teams' stored player lists: the player is removed from the old list and
   appended to the new one, and a captain or vice-captain reference held at the old team is
   left empty.
@@ -88,11 +89,11 @@ The transfer writes:
 The command refuses free agents, loans and second-team registrations, players whose
 contract club does not match their registered club, players with more than one contract
 chain record (offers or earlier contracts), and destination clubs without a stored senior
-team list. It never creates a transfer-fee history entry, changes club finances, assigns a
-squad number or edits saved tactics. Those are separate structures and are not implemented.
+team list. It never creates a transfer-fee history entry, changes club finances or edits
+saved tactics. Those are separate structures and are not implemented.
 
 Mechanically the edit is verified by re-parsing the new save: the player's club, team,
-contract team and contract start, and both team player lists are checked. A simple
+contract team, contract start, cleared squad number and both team player lists are checked. A simple
 permanent move loaded normally in FM27 on `27.0.0+2486695` and `27.0.1+2503222`, with the
 player at the new club. For a new kind of move, still load the new save, advance several
 days, and check the player's club, the squad screen, the next match and the transfer

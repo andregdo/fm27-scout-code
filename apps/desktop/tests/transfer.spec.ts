@@ -28,6 +28,9 @@ test("moves a player to another club through the transfer dialog", async ({ page
   await expect(dialog).toContainText("Squad 21 → 20");
   await expect(dialog).toContainText("Squad 22 → 23");
   await expect(dialog).toContainText("Contract restarts on 2026-07-13");
+  await expect(dialog).toContainText(
+    "Squad number 13 cleared; the new club assigns one after loading.",
+  );
 
   await dialog.getByRole("button", { name: "Write transferred save…" }).click();
   await expect(dialog).toContainText("Transferred save written");

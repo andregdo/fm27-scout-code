@@ -564,7 +564,7 @@ fn main() -> Result<()> {
                     "warnings": [
                         "The game is not open on this save. Load the new file and advance several days before relying on it.",
                         "The transfer does not create a transfer-fee history entry and does not change club finances.",
-                        "Squad number and saved tactics were not edited; check the new club's squad screen after loading."
+                        "The player's squad number is cleared; saved tactics and selections were not edited. The new club assigns a number after loading."
                     ],
                 }))?
             );

@@ -172,6 +172,7 @@ tag                 01 00 6c 07
 team id             +9
 wage                +17
 start date          -19
+squad number        -12  (1..=99; 0 and 255 mean none)
 tail base            -66
 tail step            29
 tail event count     +42
@@ -184,6 +185,13 @@ clause entries       base - 4
 head gate            base - 35 (value 5)
 head type            base - 33
 ```
+
+The squad number is the byte at `tag - 12` (tail +54). Across both reference saves it
+holds only `0`, `1..=99` or `255`; assigned numbers are unique within a team, and the
+distribution falls off with the number, as shirt numbers do. `0` and `255` both appear
+for players without a number. The game's own completed transfer changed the departing
+player's number to `255`; the new club assigns one after the move. Rust implementation:
+`PlayerEditor::squad_number`; a transfer clears the byte.
 
 Loans: tail-shaped block before a no-terms chain record, marker `FFFFFFFF` at +24,
 end date at +28.

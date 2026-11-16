@@ -490,6 +490,8 @@ impl ContractLayout {
     pub const CHAIN_WINDOW_END_OFFSET: i32 = -30;
     pub const SELECTOR_OFFSET: usize = 5;
     pub const START_OFFSET: i32 = -19;
+    /// Squad number in the current contract: 1..=99, `0` or `255` for none.
+    pub const SQUAD_NUMBER_OFFSET: i32 = -12;
     pub const TEAM_ID_OFFSET: usize = 9;
     pub const WAGE_OFFSET: usize = 17;
     pub const TAIL_BASE_OFFSET: usize = 66;

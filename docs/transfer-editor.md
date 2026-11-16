@@ -28,16 +28,16 @@ Refused:
 Not written:
 
 - transfer fee, transfer history (`transfer_man`), club balance or transfer budget;
-- squad number;
+- a new squad number (the old number is cleared; the new club assigns one after loading);
 - saved match selections or tactics;
 - staff or player-coach roles.
 
 ## Save structures involved
 
 The player record carries the team id at `+16` and the club join date at `+98`. The
-in-effect contract record carries the team id at `+9`, the start date at `-19`, the end
-date in the tail at `+28`, the squad status at `+36` and the transfer/loan listing bits at
-`+39`. See [fm27-layout.md](fm27-layout.md).
+in-effect contract record carries the team id at `+9`, the start date at `-19`, the squad
+number at `-12`, the end date in the tail at `+28`, the squad status at `+36` and the
+transfer/loan listing bits at `+39`. See [fm27-layout.md](fm27-layout.md).
 
 Each team also has a stored player list: a counted array of `pindex + 1` values with a
 46-byte header and a 38-byte trailer. The full layout is in
@@ -45,6 +45,10 @@ Each team also has a stored player list: a counted array of `pindex + 1` values 
 old team's array, appends him to the new team's array, updates both counts, and clears a
 captain or vice-captain reference to him in the old trailer. The two records change length
 by four bytes in opposite directions, so `game_db` keeps its length.
+
+The edit also clears the current contract's squad-number byte (`tag - 12`) to `255` when one
+was assigned, matching the game's own completed transfer. The new club assigns a number
+after the save loads.
 
 ## Evidence
 
@@ -59,6 +63,7 @@ showed the complete write set:
 - the contract chain went from an Alverca record plus a future Sporting record to a single
   Sporting record starting 2029-02-06;
 - the player index moved from Alverca's senior-team list to Sporting's;
+- the contract's squad-number byte went from 51 at Alverca to 255 (none) at Sporting;
 - the `transfer_man` section kept a record with the player index, both teams, the agreed
   date (2029-01-30), the completion date (2029-02-06) and an amount that looks like the
   fee. The transfer editor does not edit that section yet.
@@ -96,8 +101,8 @@ In the player profile, **Transfer** opens a dialog that:
 1. searches clubs by name and shows only clubs of the player's gender;
 2. previews the move automatically when a destination is selected, using the in-memory
    editor and writing nothing;
-3. shows both squad counts, the contract restart date, and whether listing or captaincy
-   was cleared;
+3. shows both squad counts, the contract restart date, and whether listing, captaincy or
+   squad number was cleared;
 4. writes and verifies a new save copy through **Write transferred save…**.
 
 The preview and write use the `preview_transfer` and `transfer_player` Tauri commands; the
@@ -111,7 +116,8 @@ The command checks the new save by:
 1. re-parsing it and finding the player;
 2. checking the player's club uid, team id, contract team id and contract start date;
 3. opening the new save's editor and reading both team player lists;
-4. checking the player index is absent from the old list and present in the new one.
+4. checking the player index is absent from the old list and present in the new one;
+5. checking the squad number is clear (`0` or `255`).
 
 It also asserts that `game_db` keeps its length. Removal of the output follows any failed
 check.
@@ -129,13 +135,11 @@ in-game test remains:
 
 The first test player should be a fringe player who is not a captain, is not in the saved
 match selection and is not transfer-listed, so a failure is easy to isolate. The editor
-clears the captain/vice references and listing bits, but it cannot change a saved lineup.
+clears the captain/vice references, listing bits and squad number, but it cannot change a
+saved lineup.
 
 ## Open questions
 
-- **Squad number.** The contract record's squad-number byte is not mapped in this
-  codebase. A moved player may keep the old number at the new club. The acceptance test did
-  not audit the new club's squad-number screen.
 - **Saved tactics and selections.** The save has tactical data, but the transfer editor
   does not touch it. FMLibreEditor empties selection slots at runtime; the save
   counterpart is unmapped.
@@ -151,9 +155,10 @@ clears the captain/vice references and listing bits, but it cannot change a save
 
 ## Next steps
 
-1. Map the squad number and saved-selection fields, then clear them in the same edit.
+1. Map the saved-selection fields, then clear them in the same edit.
 2. Decode `transfer_man` enough to write a history record and a fee, and reuse the existing
    club finance editor for the money.
 3. Consider free-agent signings only after contract-record creation is understood.
 4. Re-test a move that involves a captain, a transfer-listed player and a player in the
-   saved match selection, because the current in-game acceptance used a simple move.
+   saved match selection, and check the new club's squad-number screen, because the current
+   in-game acceptance used a simple move.

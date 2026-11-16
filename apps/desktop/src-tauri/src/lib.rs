@@ -1416,8 +1416,11 @@ mod tests {
                     && editor
                         .team_roster(team_id, club_uid)
                         .is_ok_and(|roster| roster.len() >= 2)
+                    && editor
+                        .squad_number(player.uid)
+                        .is_ok_and(|number| number.is_some())
             })
-            .expect("a player with a simple current contract and a team-mate");
+            .expect("a player with a simple contract, a team-mate and a squad number");
         let from_club_uid = player.club_uid.expect("the player has a club");
         let destination = parsed
             .clubs
@@ -1432,11 +1435,19 @@ mod tests {
                     .map(|_| (club.uid, team_id))
             })
             .expect("a destination club with a stored player list");
+        let squad_number_before = editor
+            .squad_number(player.uid)
+            .expect("read the squad number");
+        assert!(
+            squad_number_before.is_some(),
+            "the selected player must wear a squad number"
+        );
 
         let plan = preview_transfer_file(source.clone(), player.uid, destination.0)
             .expect("preview the transfer");
         assert_eq!(plan.to_club_uid, destination.0);
         assert_eq!(plan.to_team_id, destination.1);
+        assert_eq!(plan.squad_number_before, squad_number_before);
 
         let directory = tempfile::tempdir().expect("tempdir");
         let output = directory.path().join("desktop-transferred.fm");
@@ -1448,6 +1459,7 @@ mod tests {
         )
         .expect("write the transfer");
         assert!(Path::new(&result.output).exists());
+        assert_eq!(result.transfer.squad_number_before, squad_number_before);
         result
             .transfer
             .verify_save(&result.output)

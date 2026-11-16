@@ -310,6 +310,11 @@ Alexander-Arnold (status byte `5`, flags `0x00`) is not listed in game, the flag
 rule reports 454 transfer-listed and 1,495 loan-listed players; the old `+40 = 5` rule
 reported 756 transfer-listed players.
 
+The current contract's squad number is the byte at `tag - 12`. On both reference saves it
+holds only `0`, `1..=99` or `255`; assigned numbers are unique within a team. The game's
+own completed transfer set the departing player's byte to `255`, so the transfer editor
+clears it in the same write and lets the new club assign a number after loading.
+
 ## Team player lists
 
 Each team record stores a counted array of `pindex + 1` values: the team id minus one at

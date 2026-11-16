@@ -358,6 +358,13 @@ export function TransferDialog() {
                     <li>{t("transfer.listingCleared")}</li>
                   )}
                   {plan.captaincy_cleared && <li>{t("transfer.captaincyCleared")}</li>}
+                  {plan.squad_number_before != null && (
+                    <li>
+                      {t("transfer.squadNumberCleared", {
+                        number: plan.squad_number_before,
+                      })}
+                    </li>
+                  )}
                   <li>{t("transfer.noFee")}</li>
                 </ul>
               </div>
