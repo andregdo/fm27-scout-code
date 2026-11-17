@@ -54,6 +54,7 @@ export function PlayerTable() {
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({
     height: false,
     foot: false,
+    hidden: false,
     ...OVERVIEW_VISIBILITY,
   });
   const [columnsOpen, setColumnsOpen] = useState(false);
@@ -453,6 +454,7 @@ export function PlayerTable() {
                         }
                         visibility.height = false;
                         visibility.foot = false;
+                        visibility.hidden = false;
                         if (keys) {
                           for (const key of keys as string[]) visibility[`attr_${key}`] = true;
                         }
