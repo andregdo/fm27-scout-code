@@ -6,6 +6,7 @@ import {
   formatValue,
   initials,
   formatWage,
+  suggestedEditedSavePath,
 } from "./utils";
 
 describe("formatValue", () => {
@@ -50,6 +51,20 @@ describe("displayAttributeValue", () => {
     expect(displayAttributeValue(97)).toBe(19);
     expect(displayAttributeValue(98)).toBe(20);
     expect(displayAttributeValue(100)).toBe(20);
+  });
+});
+
+describe("suggested save paths", () => {
+  it("keeps the source directory and adds the edit suffix", () => {
+    expect(suggestedEditedSavePath("/games/My Save.fm", "My Save")).toBe(
+      "/games/My Save - edited.fm",
+    );
+  });
+
+  it("strips characters the file dialog rejects", () => {
+    expect(suggestedEditedSavePath(undefined, 'A/B:C*?"<>|')).toBe(
+      "A_B_C______ - edited.fm",
+    );
   });
 });
 

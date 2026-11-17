@@ -49,6 +49,7 @@ import type {
   StatsMoneyballRow,
   Trait,
   TraitOption,
+  TransferChange,
   ValueFinderPage,
   ValueFinderRequest,
   ValueFinderRow,
@@ -395,6 +396,59 @@ export const MOCK_SAVE: SaveRecord = {
   clubs: CLUBS.length,
   contracts: MOCK_PLAYERS.length,
 };
+
+export function mockTransferPlan(uid: number, toClubUid: number): TransferChange {
+  const player = MOCK_PLAYERS.find((item) => item.uid === uid) ?? MOCK_PLAYERS[0];
+  const from =
+    MOCK_CLUB_ROWS.find((club) => club.uid === player.club_uid) ?? MOCK_CLUB_ROWS[0];
+  const to = MOCK_CLUB_ROWS.find((club) => club.uid === toClubUid) ?? MOCK_CLUB_ROWS[1];
+  const fromTeam = 1_000_000 + from.uid;
+  const toTeam = 1_000_000 + to.uid;
+  const gameDate = MOCK_SUMMARY.game_date;
+  const squadNumber = (player.uid % 99) + 1;
+  return {
+    uid: player.uid,
+    player_index: 50_000 + (player.uid % 10_000),
+    from_club_uid: from.uid,
+    from_club_name: from.name,
+    from_team_id: fromTeam,
+    to_club_uid: to.uid,
+    to_club_name: to.name,
+    to_team_id: toTeam,
+    from_players_before: from.player_count,
+    from_players_after: from.player_count - 1,
+    to_players_before: to.player_count,
+    to_players_after: to.player_count + 1,
+    captaincy_cleared: false,
+    squad_number_before: squadNumber,
+    changes: [
+      {
+        field: "club.uid",
+        before: from.uid,
+        after: to.uid,
+        before_display: from.name,
+        after_display: to.name,
+      },
+      { field: "team.id", before: fromTeam, after: toTeam },
+      {
+        field: "club.join_date",
+        before: 0,
+        after: 0,
+        before_display: player.club_join_date ?? undefined,
+        after_display: gameDate,
+      },
+      { field: "contract.team_id", before: fromTeam, after: toTeam },
+      {
+        field: "contract.start",
+        before: 0,
+        after: 0,
+        before_display: player.contract?.start ?? undefined,
+        after_display: gameDate,
+      },
+      { field: "contract.squad_number", before: squadNumber, after: 255 },
+    ],
+  };
+}
 
 export function mockPlayerRow(player: Player): PlayerRow {
   const positionsText = player.natural_positions.join(" / ");

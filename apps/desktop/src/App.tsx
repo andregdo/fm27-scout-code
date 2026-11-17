@@ -13,6 +13,7 @@ import { SettingsDialog } from "./components/SettingsDialog";
 import { ExportDialog } from "./components/ExportDialog";
 import { HelpDialog } from "./components/HelpDialog";
 import { EditPlayerDialog } from "./components/EditPlayerDialog";
+import { TransferDialog } from "./components/TransferDialog";
 import { PendingEditsDialog } from "./components/PendingEditsDialog";
 import { ParseOverlay } from "./components/ParseOverlay";
 import { Toasts } from "./components/Toasts";
@@ -40,6 +41,7 @@ export default function App() {
   const setSelectedStaffUid = useAppStore((state) => state.setSelectedStaffUid);
   const setExportOpen = useAppStore((state) => state.setExportOpen);
   const setEditOpen = useAppStore((state) => state.setEditOpen);
+  const setTransferOpen = useAppStore((state) => state.setTransferOpen);
   const setPendingOpen = useAppStore((state) => state.setPendingOpen);
   const setSettingsOpen = useAppStore((state) => state.setSettingsOpen);
   const setCompareOpen = useAppStore((state) => state.setCompareOpen);
@@ -49,6 +51,7 @@ export default function App() {
   const settingsOpen = useAppStore((state) => state.settingsOpen);
   const exportOpen = useAppStore((state) => state.exportOpen);
   const editOpen = useAppStore((state) => state.editOpen);
+  const transferOpen = useAppStore((state) => state.transferOpen);
   const pendingOpen = useAppStore((state) => state.pendingOpen);
   const helpOpen = useAppStore((state) => state.helpOpen);
   const theme = useAppStore((state) => state.theme);
@@ -112,6 +115,7 @@ export default function App() {
         else if (settingsOpen) setSettingsOpen(false);
         else if (exportOpen) setExportOpen(false);
         else if (editOpen) setEditOpen(false);
+        else if (transferOpen) setTransferOpen(false);
         else if (pendingOpen) setPendingOpen(false);
         else if (helpOpen) setHelpOpen(false);
         else if (viewMode === "clubs" && selectedClubUid != null) setSelectedClubUid(null);
@@ -128,6 +132,7 @@ export default function App() {
     exportOpen,
     helpOpen,
     pendingOpen,
+    transferOpen,
     selectedClubUid,
     selectedStaffUid,
     selectedUid,
@@ -135,6 +140,7 @@ export default function App() {
     setEditOpen,
     setExportOpen,
     setPendingOpen,
+    setTransferOpen,
     setHelpOpen,
     setSelectedClubUid,
     setSelectedStaffUid,
@@ -249,6 +255,7 @@ export default function App() {
       <SettingsDialog />
       <ExportDialog />
       <EditPlayerDialog />
+      <TransferDialog />
       <PendingEditsDialog />
       <HelpDialog />
       <ParseOverlay />

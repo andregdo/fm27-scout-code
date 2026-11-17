@@ -90,6 +90,11 @@ cargo build --release -p fm27-cli
   --balance 30000000 --transfer-budget 6000000 --wage-budget 600000 \
   --stadium-uid 43156154 --all-seater 1300 --expansion 6000 \
   --output club-edited.fm
+
+# Experimental: move a contracted player to another club's senior team
+./target/release/fm27scout transfer "/path/to/save.fm" \
+  --uid 2000449256 --to-club 2391 \
+  --output transferred.fm --save-name "FM27 Scout Transfer Test"
 ```
 
 The `edit` subcommand is documented in [editor.md](editor.md). It supports builds

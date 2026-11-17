@@ -172,6 +172,7 @@ tag                 01 00 6c 07
 team id             +9
 wage                +17
 start date          -19
+squad number        -12  (1..=99; 0 and 255 mean none)
 tail base            -66
 tail step            29
 tail event count     +42
@@ -185,8 +186,53 @@ head gate            base - 35 (value 5)
 head type            base - 33
 ```
 
+The squad number is the byte at `tag - 12` (tail +54). Across both reference saves it
+holds only `0`, `1..=99` or `255`; assigned numbers are unique within a team, and the
+distribution falls off with the number, as shirt numbers do. `0` and `255` both appear
+for players without a number. The game's own completed transfer changed the departing
+player's number to `255`; the new club assigns one after the move. Rust implementation:
+`PlayerEditor::squad_number`; a transfer clears the byte.
+
 Loans: tail-shaped block before a no-terms chain record, marker `FFFFFFFF` at +24,
 end date at +28.
+
+## Team player lists
+
+FM27 stores each team's players as a counted array of player indexes, one record per
+team. The record starts at the team-id word (there is no record tag):
+
+```text
+team id - 1         +0   u32
+club uid - 1        +4   u32
+club uid - 1        +8   u32 (copy of +4)
+unmapped header     +12 .. +45
+player count        +46  u16
+players             +48  u32 player index + 1, count times
+captain reference   +48 + 4 * count     u32 player index + 1, or FFFFFFFF
+vice-captain ref    +52 + 4 * count     u32 player index + 1, or FFFFFFFF
+unmapped trailer    ...  FFFFFFFF and other bytes, ending 38 bytes after the players
+```
+
+A record is `86 + 4 * count` bytes. The next team record starts immediately after it.
+The player values are **`pindex + 1`**, the same selector space as the contract chain; a
+value of zero or `FFFFFFFF` names no player. The first two trailer words are always one
+of the record's own players when set; they are treated as the captain and vice-captain,
+but that identification has not been confirmed against the game UI. The rest of the
+trailer is copied unchanged.
+
+The records cover the teams whose player lists the save maintains, including reserve and
+youth teams. A reserve team can be stored under its own club object, so the header's
+club uid is not always the parent club's uid. They are not one contiguous walk: segments
+of team records are interleaved with other records. Locate a specific team by scanning
+for `team_id - 1`, requiring the doubled club uid, a sane count, every player value to
+resolve to a known player record, and every set trailer reference to be one of the
+record's players.
+
+Observed on `27.0.0+2486695` and `27.0.1+2503222` saves: a plain save stores the senior
+team's list exactly matching the players whose `team_id` is that team, and a transfer the
+game completed removed the player from the old list and appended him to the new one. The
+total `game_db` length is unchanged by such a move: one record loses four bytes and the
+other gains four.
 
 ## Competitions
 

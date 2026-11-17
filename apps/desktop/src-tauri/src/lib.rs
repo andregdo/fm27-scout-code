@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -6,7 +6,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use fm27_core::ability::{CaEstimate, estimate_ca, estimate_positions};
 use fm27_core::club_editor::{ClubEditRequest, ClubEditor};
 use fm27_core::container::SaveFile;
-use fm27_core::editor::{EditChange, PlayerEditRequest, PlayerEditor};
+use fm27_core::editor::{EditChange, PlayerEditRequest, PlayerEditor, TransferChange};
 use fm27_core::export::ExportWriter;
 use fm27_core::metadata::read_metadata;
 use fm27_core::model::{Attributes, ClubDetail, Positions};
@@ -100,11 +100,19 @@ struct PlayerEditBatch {
     request: PlayerEditRequest,
 }
 
+/// A staged move from the desktop Transfer dialog.
+#[derive(Debug, Deserialize)]
+struct TransferBatch {
+    uid: u32,
+    to_club_uid: u32,
+}
+
 #[derive(Debug, Serialize)]
-struct BatchEditResult {
+struct BatchSaveResult {
     output: String,
     file_size: u64,
     players: usize,
+    transfers: usize,
     changes: usize,
 }
 
@@ -158,6 +166,15 @@ fn updater_info(app: AppHandle) -> UpdaterInfo {
 
 fn error_string(error: impl std::fmt::Display) -> String {
     error.to_string()
+}
+
+/// The source save path recorded for a cache entry.
+fn save_source(state: &AppState, save_id: i64) -> Result<String, String> {
+    let store = state.store.lock().map_err(error_string)?;
+    store
+        .save_path(save_id)
+        .map_err(error_string)?
+        .ok_or_else(|| "save not found".to_owned())
 }
 
 async fn run_store_command<T, F>(state: State<'_, AppState>, operation: F) -> Result<T, String>
@@ -505,42 +522,63 @@ fn estimate_player_ca(request: CaEstimateRequest) -> Result<CaEstimate, String> 
 }
 
 #[tauri::command]
-async fn save_player_edits(
+async fn save_pending_changes(
     state: State<'_, AppState>,
     save_id: i64,
     output_path: String,
     edits: Vec<PlayerEditBatch>,
-) -> Result<BatchEditResult, String> {
-    let source = {
-        let store = state.store.lock().map_err(error_string)?;
-        store
-            .save_path(save_id)
-            .map_err(error_string)?
-            .ok_or_else(|| "save not found".to_owned())?
-    };
-    tauri::async_runtime::spawn_blocking(move || save_players_file(source, output_path, edits))
-        .await
-        .map_err(error_string)?
+    transfers: Vec<TransferBatch>,
+) -> Result<BatchSaveResult, String> {
+    let source = save_source(&state, save_id)?;
+    tauri::async_runtime::spawn_blocking(move || {
+        save_pending_file(source, output_path, edits, transfers)
+    })
+    .await
+    .map_err(error_string)?
 }
 
-fn save_players_file(
+fn save_pending_file(
     source: String,
     output_path: String,
     edits: Vec<PlayerEditBatch>,
-) -> Result<BatchEditResult, String> {
-    if edits.is_empty() {
-        return Err("no edits requested".to_owned());
+    transfers: Vec<TransferBatch>,
+) -> Result<BatchSaveResult, String> {
+    if edits.is_empty() && transfers.is_empty() {
+        return Err("no changes requested".to_owned());
     }
-    let save = SaveFile::open(&source).map_err(error_string)?;
-    let metadata = read_metadata(&save).map_err(error_string)?;
-    let mut editor = PlayerEditor::open(&save, &metadata).map_err(error_string)?;
     for edit in &edits {
         if edit.request.is_empty() {
             return Err(format!("player uid {} has no edits", edit.uid));
         }
+    }
+    let mut transfer_uids = HashSet::new();
+    for transfer in &transfers {
+        if !transfer_uids.insert(transfer.uid) {
+            return Err(format!(
+                "player uid {} has more than one staged transfer",
+                transfer.uid
+            ));
+        }
+    }
+
+    let save = SaveFile::open(&source).map_err(error_string)?;
+    let metadata = read_metadata(&save).map_err(error_string)?;
+    let mut editor = PlayerEditor::open(&save, &metadata).map_err(error_string)?;
+
+    // Apply fixed-width player edits first. A transfer splices both team lists
+    // and moves later bytes, so every move must come after all field edits.
+    for edit in &edits {
         edit.request
             .apply(&mut editor, edit.uid)
             .map_err(error_string)?;
+    }
+    let mut transfer_changes = Vec::with_capacity(transfers.len());
+    for transfer in &transfers {
+        transfer_changes.push(
+            editor
+                .transfer(transfer.uid, transfer.to_club_uid)
+                .map_err(error_string)?,
+        );
     }
     editor.validate().map_err(error_string)?;
 
@@ -572,6 +610,17 @@ fn save_players_file(
                     })?;
                 edit.request.verify(player).map_err(error_string)?;
             }
+            if !transfer_changes.is_empty() {
+                let output_save = SaveFile::open(&output).map_err(error_string)?;
+                let output_metadata = read_metadata(&output_save).map_err(error_string)?;
+                let verify_editor =
+                    PlayerEditor::open(&output_save, &output_metadata).map_err(error_string)?;
+                for change in &transfer_changes {
+                    change
+                        .verify(&parsed, &verify_editor)
+                        .map_err(error_string)?;
+                }
+            }
             Ok(())
         });
     if let Err(error) = verify {
@@ -579,10 +628,11 @@ fn save_players_file(
         return Err(error);
     }
 
-    Ok(BatchEditResult {
+    Ok(BatchSaveResult {
         output: report.output,
         file_size: report.file_size,
         players: edits.len(),
+        transfers: transfer_changes.len(),
         changes: editor.changes().len(),
     })
 }
@@ -608,13 +658,7 @@ async fn edit_player(
     output_path: String,
     request: PlayerEditRequest,
 ) -> Result<EditPlayerResult, String> {
-    let source = {
-        let store = state.store.lock().map_err(error_string)?;
-        store
-            .save_path(save_id)
-            .map_err(error_string)?
-            .ok_or_else(|| "save not found".to_owned())?
-    };
+    let source = save_source(&state, save_id)?;
     tauri::async_runtime::spawn_blocking(move || {
         edit_player_file(source, uid, output_path, request)
     })
@@ -684,13 +728,7 @@ async fn edit_club(
     output_path: String,
     request: ClubEditRequest,
 ) -> Result<EditClubResult, String> {
-    let source = {
-        let store = state.store.lock().map_err(error_string)?;
-        store
-            .save_path(save_id)
-            .map_err(error_string)?
-            .ok_or_else(|| "save not found".to_owned())?
-    };
+    let source = save_source(&state, save_id)?;
     tauri::async_runtime::spawn_blocking(move || {
         edit_club_file(source, club_uid, output_path, request)
     })
@@ -743,6 +781,32 @@ fn edit_club_file(
         changes: editor.changes().to_vec(),
         warnings,
     })
+}
+
+#[tauri::command]
+async fn preview_transfer(
+    state: State<'_, AppState>,
+    save_id: i64,
+    uid: u32,
+    to_club_uid: u32,
+) -> Result<TransferChange, String> {
+    let source = save_source(&state, save_id)?;
+    tauri::async_runtime::spawn_blocking(move || preview_transfer_file(source, uid, to_club_uid))
+        .await
+        .map_err(error_string)?
+}
+
+fn preview_transfer_file(
+    source: String,
+    uid: u32,
+    to_club_uid: u32,
+) -> Result<TransferChange, String> {
+    let save = SaveFile::open(&source).map_err(error_string)?;
+    let metadata = read_metadata(&save).map_err(error_string)?;
+    let mut editor = PlayerEditor::open(&save, &metadata).map_err(error_string)?;
+    let change = editor.transfer(uid, to_club_uid).map_err(error_string)?;
+    editor.validate().map_err(error_string)?;
+    Ok(change)
 }
 
 #[tauri::command]
@@ -1159,7 +1223,8 @@ pub fn run() {
             club_filter_options,
             edit_player,
             edit_club,
-            save_player_edits,
+            save_pending_changes,
+            preview_transfer,
             estimate_player_ca,
             trait_options,
             player_roles,
@@ -1224,6 +1289,39 @@ mod tests {
     }
 
     #[test]
+    fn rejects_an_empty_pending_batch() {
+        let error = save_pending_file(
+            "missing.fm".to_owned(),
+            "output.fm".to_owned(),
+            Vec::new(),
+            Vec::new(),
+        )
+        .expect_err("an empty batch must be refused");
+        assert!(error.contains("no changes requested"));
+    }
+
+    #[test]
+    fn rejects_duplicate_staged_transfers() {
+        let error = save_pending_file(
+            "missing.fm".to_owned(),
+            "output.fm".to_owned(),
+            Vec::new(),
+            vec![
+                TransferBatch {
+                    uid: 7,
+                    to_club_uid: 10,
+                },
+                TransferBatch {
+                    uid: 7,
+                    to_club_uid: 11,
+                },
+            ],
+        )
+        .expect_err("a duplicated player must be refused");
+        assert!(error.contains("more than one staged transfer"));
+    }
+
+    #[test]
     #[ignore = "requires a real FM27 save and FM27_TEST_SAVE"]
     fn saves_several_player_edits_in_one_file() {
         let source = std::env::var("FM27_TEST_SAVE").expect("set FM27_TEST_SAVE");
@@ -1247,9 +1345,10 @@ mod tests {
                 },
             })
             .collect();
-        let result =
-            save_players_file(source, output.display().to_string(), edits).expect("save batch");
+        let result = save_pending_file(source, output.display().to_string(), edits, Vec::new())
+            .expect("save batch");
         assert_eq!(result.players, 2);
+        assert_eq!(result.transfers, 0);
 
         let edited = fm27_core::parse_save(&result.output).expect("parse edited save");
         for player in &players {
@@ -1306,5 +1405,132 @@ mod tests {
         )
         .expect_err("existing output must be refused");
         assert!(error.contains("already exists"));
+    }
+
+    #[test]
+    #[ignore = "requires a real FM27 save and FM27_TEST_SAVE"]
+    fn previews_and_saves_edits_with_several_transfers() {
+        let source = std::env::var("FM27_TEST_SAVE").expect("set FM27_TEST_SAVE");
+        let save = SaveFile::open(&source).expect("open source save");
+        let metadata = read_metadata(&save).expect("read source metadata");
+        let parsed = fm27_core::parse_save(&source).expect("parse source save");
+        let editor = PlayerEditor::open(&save, &metadata).expect("open player editor");
+
+        let candidates: Vec<&Player> = parsed
+            .players
+            .iter()
+            .filter(|player| {
+                let Some(contract) = player.contract.as_ref() else {
+                    return false;
+                };
+                let (Some(club_uid), Some(team_id)) = (player.club_uid, player.team_id) else {
+                    return false;
+                };
+                player.team_slot == Some(0)
+                    && player.on_loan != Some(true)
+                    && contract.chain.len() == 1
+                    && contract.chain[0].has_terms
+                    && contract.team_id == player.team_id
+                    && editor
+                        .team_roster(team_id, club_uid)
+                        .is_ok_and(|roster| roster.len() >= 2)
+                    && editor
+                        .squad_number(player.uid)
+                        .is_ok_and(|number| number.is_some())
+            })
+            .take(2)
+            .collect();
+        let player = candidates
+            .first()
+            .copied()
+            .expect("a player with a simple contract, a team-mate and a squad number");
+        let from_club_uid = player.club_uid.expect("the player has a club");
+        let destination = parsed
+            .clubs
+            .iter()
+            .filter(|club| club.uid != from_club_uid)
+            .filter(|club| player.gender.is_none() || club.gender == player.gender)
+            .find_map(|club| {
+                let team_id = *club.teams.first()?;
+                editor
+                    .team_roster(team_id, club.uid)
+                    .ok()
+                    .map(|_| (club.uid, team_id))
+            })
+            .expect("a destination club with a stored player list");
+        let second = candidates
+            .iter()
+            .copied()
+            .find(|candidate| {
+                candidate.uid != player.uid
+                    && candidate.club_uid != Some(destination.0)
+                    && (player.gender.is_none() || candidate.gender == player.gender)
+            })
+            .expect("a second transferable player of the same gender");
+        let squad_number_before = editor
+            .squad_number(player.uid)
+            .expect("read the squad number");
+        assert!(
+            squad_number_before.is_some(),
+            "the selected player must wear a squad number"
+        );
+
+        let plan = preview_transfer_file(source.clone(), player.uid, destination.0)
+            .expect("preview the transfer");
+        assert_eq!(plan.to_club_uid, destination.0);
+        assert_eq!(plan.to_team_id, destination.1);
+        assert_eq!(plan.squad_number_before, squad_number_before);
+
+        let directory = tempfile::tempdir().expect("tempdir");
+        let output = directory.path().join("desktop-batch.fm");
+        let result = save_pending_file(
+            source,
+            output.display().to_string(),
+            vec![PlayerEditBatch {
+                uid: player.uid,
+                request: PlayerEditRequest {
+                    pa: Some(200),
+                    ..PlayerEditRequest::default()
+                },
+            }],
+            vec![
+                TransferBatch {
+                    uid: player.uid,
+                    to_club_uid: destination.0,
+                },
+                TransferBatch {
+                    uid: second.uid,
+                    to_club_uid: destination.0,
+                },
+            ],
+        )
+        .expect("save edits and transfers in one file");
+        assert!(Path::new(&result.output).exists());
+        assert_eq!(result.players, 1);
+        assert_eq!(result.transfers, 2);
+
+        let reparsed = fm27_core::parse_save(&result.output).expect("parse saved changes");
+        for transferred_uid in [player.uid, second.uid] {
+            let transferred = reparsed
+                .players
+                .iter()
+                .find(|candidate| candidate.uid == transferred_uid)
+                .expect("the transferred player is still in the save");
+            assert_eq!(transferred.club_uid, Some(destination.0));
+            assert_eq!(transferred.team_id, Some(destination.1));
+            assert_eq!(
+                transferred
+                    .contract
+                    .as_ref()
+                    .and_then(|contract| contract.team_id),
+                Some(destination.1)
+            );
+        }
+        let edited = reparsed
+            .players
+            .iter()
+            .find(|candidate| candidate.uid == player.uid)
+            .expect("the edited player is still in the save");
+        assert_eq!(edited.pa, Some(200));
     }
 }

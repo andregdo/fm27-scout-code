@@ -92,11 +92,38 @@ export interface PlayerEditBatch {
   request: PlayerEditRequest;
 }
 
-export interface BatchEditResult {
+export interface BatchSaveResult {
   output: string;
   file_size: number;
   players: number;
+  transfers: number;
   changes: number;
+}
+
+/** A staged move sent to the batch save command. */
+export interface TransferBatch {
+  uid: number;
+  to_club_uid: number;
+}
+
+export interface TransferChange {
+  uid: number;
+  /** The player's stored index plus one, used by the team player lists. */
+  player_index: number;
+  from_club_uid: number;
+  from_club_name: string;
+  from_team_id: number;
+  to_club_uid: number;
+  to_club_name: string;
+  to_team_id: number;
+  from_players_before: number;
+  from_players_after: number;
+  to_players_before: number;
+  to_players_after: number;
+  captaincy_cleared: boolean;
+  /** Squad number worn at the old club, if one was assigned. */
+  squad_number_before: number | null;
+  changes: EditChange[];
 }
 
 export interface CaEstimateRequest {

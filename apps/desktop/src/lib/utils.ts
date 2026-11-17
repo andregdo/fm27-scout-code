@@ -113,16 +113,24 @@ export function relativeTime(iso: string, locale: Locale = "en"): string {
   return formatRelativeTime(iso, locale);
 }
 
-export function suggestedEditedSavePath(
+function suggestedSavePath(
   source: string | undefined,
   saveName: string | undefined,
+  suffix: string,
 ): string {
   const cleanName = (saveName || "fm27-save")
     .replace(/[\\/:*?"<>|]/g, "_")
     .replace(/\.fm$/i, "");
   const separator = source ? Math.max(source.lastIndexOf("/"), source.lastIndexOf("\\")) : -1;
   const directory = separator >= 0 ? source!.slice(0, separator + 1) : "";
-  return `${directory}${cleanName} - edited.fm`;
+  return `${directory}${cleanName} - ${suffix}.fm`;
+}
+
+export function suggestedEditedSavePath(
+  source: string | undefined,
+  saveName: string | undefined,
+): string {
+  return suggestedSavePath(source, saveName, "edited");
 }
 
 export function formatBytes(bytes: number): string {
