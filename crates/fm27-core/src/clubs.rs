@@ -79,7 +79,12 @@ const AFTER_NAMES: [RecordStep; 2] = [
     },
 ];
 const BASE_FINANCE_BYTES: usize = 45;
-const FULL_FINANCE: [RecordStep; 19] = [
+/// The full-finance chain closes with a fixed block whose size grew from 67 to
+/// 72 bytes in FM27 build 27.1.0+2505117: the extra five bytes are a one-byte
+/// status followed by a game date at offset 22 of that block. Both sizes are
+/// accepted; the table walk keeps the one that lands on the row's own footer.
+const FULL_FINANCE_TAIL_BYTES: [usize; 2] = [67, 72];
+const FULL_FINANCE_LEADING: [RecordStep; 18] = [
     RecordStep {
         count_bytes: 0,
         lead_bytes: 66,
@@ -168,11 +173,6 @@ const FULL_FINANCE: [RecordStep; 19] = [
     RecordStep {
         count_bytes: 1,
         lead_bytes: 19,
-        tail_bytes: 0,
-    },
-    RecordStep {
-        count_bytes: 0,
-        lead_bytes: 67,
         tail_bytes: 0,
     },
 ];
@@ -479,16 +479,19 @@ fn read_counted_table(game_db: &[u8], anchor_records: &[ClubRecord]) -> Option<V
             if game_db.get(body) != Some(&variant) {
                 continue;
             }
-            let Some(row) = club_table_record(game_db, body) else {
-                continue;
-            };
             let count = read_u32(game_db, head).unwrap_or(0);
             let plausible = (1..=200_000).contains(&count);
-            if (plausible || row.footer_start == first_start)
-                && row.unique_id != 0
-                && row.unique_id != u32::MAX
-            {
-                heads.push(head);
+            for tail in FULL_FINANCE_TAIL_BYTES {
+                let Some(row) = club_table_record(game_db, body, tail) else {
+                    continue;
+                };
+                if (plausible || row.footer_start == first_start)
+                    && row.unique_id != 0
+                    && row.unique_id != u32::MAX
+                {
+                    heads.push(head);
+                    break;
+                }
             }
         }
     }
@@ -508,10 +511,10 @@ fn read_counted_table(game_db: &[u8], anchor_records: &[ClubRecord]) -> Option<V
         }
         let table_start = rows[0].body_start;
         let table_end = rows.last()?.footer_start + 12;
-        if anchor_records
+        let covered = anchor_records
             .iter()
-            .all(|record| table_start <= record.record_start && record.record_start < table_end)
-        {
+            .all(|record| table_start <= record.record_start && record.record_start < table_end);
+        if covered {
             tables.push(rows);
         }
     }
@@ -576,11 +579,14 @@ fn walk_club_table(game_db: &[u8], head: usize) -> Option<Vec<TableRow>> {
     let mut rows = Vec::with_capacity(count as usize);
     let mut seen = std::collections::HashSet::new();
     for ordinal in 0..count {
-        let row = club_table_record(game_db, cursor)?;
-        let stored = read_u32(game_db, row.footer_start)?;
-        if stored != ordinal || row.unique_id == 0 || row.unique_id == u32::MAX {
-            return None;
-        }
+        let row = FULL_FINANCE_TAIL_BYTES
+            .iter()
+            .filter_map(|tail| club_table_record(game_db, cursor, *tail))
+            .find(|row| {
+                read_u32(game_db, row.footer_start) == Some(ordinal)
+                    && row.unique_id != 0
+                    && row.unique_id != u32::MAX
+            })?;
         if !seen.insert(row.unique_id) {
             return None;
         }
@@ -590,7 +596,7 @@ fn walk_club_table(game_db: &[u8], head: usize) -> Option<Vec<TableRow>> {
     Some(rows)
 }
 
-fn club_table_record(game_db: &[u8], body: usize) -> Option<TableRow> {
+fn club_table_record(game_db: &[u8], body: usize, finance_tail: usize) -> Option<TableRow> {
     let kind = *game_db.get(body)?;
     if kind != 0 && kind != 12 {
         return None;
@@ -611,7 +617,10 @@ fn club_table_record(game_db: &[u8], body: usize) -> Option<TableRow> {
     cursor += 1;
     match finance {
         0 => cursor = cursor.checked_add(BASE_FINANCE_BYTES)?,
-        1 => cursor = walk_steps(game_db, cursor, &FULL_FINANCE)?,
+        1 => {
+            cursor = walk_steps(game_db, cursor, &FULL_FINANCE_LEADING)?;
+            cursor = cursor.checked_add(finance_tail)?;
+        }
         2 => {}
         _ => return None,
     }
@@ -1015,4 +1024,65 @@ fn read_statuses(game_db: &[u8], records: &[ClubRecord]) -> Vec<ClubStatus> {
         }
     }
     statuses
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Build one counted-table row. Counted steps are written with a zero
+    /// count, which keeps the row minimal: the layout offsets still advance
+    /// exactly as they do for real rows.
+    fn build_row(tail_bytes: usize, ordinal: u32, unique_id: u32) -> Vec<u8> {
+        let mut row = vec![0u8; 1 + 26];
+        row.extend_from_slice(&0u32.to_le_bytes());
+        row.extend_from_slice(&0u32.to_le_bytes());
+        row.extend_from_slice(&[0u8; 9]);
+        row.push(1);
+        for step in FULL_FINANCE_LEADING {
+            if step.count_bytes > 0 {
+                row.extend(std::iter::repeat_n(0u8, step.count_bytes));
+            } else {
+                row.extend(std::iter::repeat_n(0u8, step.lead_bytes + step.tail_bytes));
+            }
+        }
+        row.extend(std::iter::repeat_n(0u8, tail_bytes));
+        for step in AFTER_FINANCE {
+            row.extend(std::iter::repeat_n(0u8, step.count_bytes));
+            if step.count_bytes == 0 {
+                row.extend(std::iter::repeat_n(0u8, step.lead_bytes + step.tail_bytes));
+            }
+        }
+        row.extend_from_slice(&ordinal.to_le_bytes());
+        row.extend_from_slice(&unique_id.to_le_bytes());
+        row.extend_from_slice(&unique_id.to_le_bytes());
+        row
+    }
+
+    fn build_table(tails: &[usize]) -> Vec<u8> {
+        let mut data = Vec::new();
+        data.extend_from_slice(&(tails.len() as u32).to_le_bytes());
+        data.push(0);
+        for (ordinal, tail) in tails.iter().copied().enumerate() {
+            data.extend_from_slice(&build_row(tail, ordinal as u32, 1000 + ordinal as u32));
+        }
+        data
+    }
+
+    #[test]
+    fn club_table_accepts_both_finance_tail_sizes() {
+        let data = build_table(&[67, 72, 67, 72]);
+        let rows = walk_club_table(&data, 0).expect("table with both tail sizes");
+        assert_eq!(rows.len(), 4);
+        assert_eq!(
+            rows.iter().map(|row| row.unique_id).collect::<Vec<_>>(),
+            vec![1000, 1001, 1002, 1003]
+        );
+    }
+
+    #[test]
+    fn club_table_rejects_an_unknown_finance_tail_size() {
+        let data = build_table(&[62]);
+        assert!(walk_club_table(&data, 0).is_none());
+    }
 }

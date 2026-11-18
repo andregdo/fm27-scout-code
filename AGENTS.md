@@ -138,7 +138,7 @@ cargo build --release -p fm27-cli
 - `parse.rs` orchestrates decoding: metadata → `game_db` → name pools → player records → clubs/teams → finances/facilities → stadiums → competitions/leagues → injuries/suspensions → players and contracts → season stats.
 - All reverse-engineered offsets and key tables live in `layout.rs`. Do not scatter magic offsets through decoders.
 - `player_scan.rs`, `persons.rs` and `names.rs` locate player records and person blocks; `clubs.rs`, `contracts.rs`, `competitions.rs`, `finances.rs`, `facilities.rs`, `stadiums.rs`, `injuries.rs` and `suspensions.rs` decode their sections.
-- Supported builds are `27.0.0+2486695` and `27.0.0+2493426`, `game_db` schema 4000. Unknown builds are read in degraded mode where safe, and editing refuses them. The parser fails closed instead of guessing when framing or record shapes are invalid.
+- Supported builds are `27.0.0+2486695`, `27.0.0+2493426`, `27.0.1+2494687`, `27.0.1+2503222` and `27.1.0+2505117`, `game_db` schema 4000. Unknown builds are read in degraded mode where safe, and editing refuses them. The parser fails closed instead of guessing when framing or record shapes are invalid.
 
 `docs/fm27-layout.md` is the quick offset reference; `docs/parser-notes.md` records the observed FM27 facts and the intentional stopping points.
 

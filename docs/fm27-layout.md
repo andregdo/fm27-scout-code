@@ -1,8 +1,9 @@
 # FM27 layout quick reference
 
-Builds `27.0.0+2486695`, `27.0.0+2493426`, `27.0.1+2494687` and `27.0.1+2503222`,
-`game_db` schema 4000. All four builds share the layout below. Offsets are decimal
-bytes unless noted.
+Builds `27.0.0+2486695`, `27.0.0+2493426`, `27.0.1+2494687`, `27.0.1+2503222`
+and `27.1.0+2505117`, `game_db` schema 4000. All five builds share the layout
+below except for the club full-finance closing block described under
+[Clubs](#clubs). Offsets are decimal bytes unless noted.
 
 ## Save container
 
@@ -75,6 +76,21 @@ Counted table rows; FM27 changes:
 full_finance[0].lead_bytes = 66   (FM26: 70)
 after_finance[5..7].count_bytes = 2 (FM26: 1)
 ```
+
+The full-finance chain closes with a fixed block. It is 67 bytes through
+`27.0.1+2503222` and 72 bytes on `27.1.0+2505117`:
+
+```text
++0..21   unchanged block fields
++22      status byte (0..=6 observed; meaning not yet decoded)
++23      game date (4 bytes; 1900-01-01 / null on the tested save)
++27..    the previous +22.. block tail, shifted by five bytes
+```
+
+All 319 club records that carry a full-finance chain use the 72-byte block on
+the tested 27.1.0 save. The parser accepts both sizes and keeps the one whose
+following `after_finance` walk lands on the row's own footer, so the footer
+ordinal is the structural check.
 
 Initial club uid is 0 and has no anchor; it comes from the table's first row.
 Anchor scan fallback: `FF FF FF FF` at record +17.
@@ -330,7 +346,8 @@ boundary. Rust implementation: `crates/fm27-core/src/fixtures.rs`.
 ## Staff objects
 
 Staff objects use the person-header shape with kind byte `1` at header +12. Verified on
-`27.0.0+2486695`, `27.0.0+2493426`, `27.0.1+2494687` and `27.0.1+2503222`:
+`27.0.0+2486695`, `27.0.0+2493426`, `27.0.1+2494687`, `27.0.1+2503222` and
+`27.1.0+2505117`:
 
 ```text
 header             pindex u32

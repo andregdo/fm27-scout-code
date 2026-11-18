@@ -239,3 +239,30 @@ by each build:
   editor re-parsing and field-verifying each output.
 - The managed club resolves to A.C. Milan with manager `AP King` on the new
   build.
+
+Build `27.1.0+2505117` was verified against `27.0.1+2503222` on the same career
+one in-game day apart (2029-04-20 and 2029-04-21):
+
+- 26,127 clubs, 27,089 stadiums, 3,690 monthly finance rows, 9,803 staff rows,
+  2,032 competitions and 56,762 contracts were read from both saves.
+- All 26,127 club records matched on static fields except four short-name
+  corrections; all 27,089 stadium rows and all 3,690 finance rows matched
+  exactly, and all 9,803 staff rows matched on names, birth dates, nations and
+  Unique IDs.
+- The only structural change was the full-finance closing block growing from 67
+  to 72 bytes on all 319 full-finance club records. See
+  [fm27-layout.md](fm27-layout.md#clubs).
+- Player differences were consistent with one day of game progress: training
+  changed attributes and CA, young players grew, and two regenerated players
+  were consolidated onto new person records (their old identified Unique IDs
+  are absent, and two previously markerless records now carry their names).
+  That consolidation accounts for the player count dropping by two. No static
+  player field changed shape.
+- The new save gained 380 season-stat rows, which matches the day of matches.
+- `editor_real_save` (CA/PA, attributes, personality, traits, wage and contract
+  end), the club-edit real-save test and the transfer real-save test passed
+  against the new build, with every output re-parsed and field-verified.
+- A manual player edit, club edit and transfer on the new save also wrote and
+  verified their output files.
+- The managed club resolves to A.C. Milan with manager `AP King` on the new
+  build.

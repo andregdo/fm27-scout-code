@@ -9,12 +9,12 @@ refuse to overwrite the source file.
 
 ## Supported saves
 
-- FM27 builds `27.0.0+2486695`, `27.0.0+2493426`, `27.0.1+2494687` and
-  `27.0.1+2503222`
+- FM27 builds `27.0.0+2486695`, `27.0.0+2493426`, `27.0.1+2494687`,
+  `27.0.1+2503222` and `27.1.0+2505117`
 - `game_db` schema 4000
 
-All four builds share the same save layout. The editor refuses other builds and
-schemas instead of guessing field offsets.
+All five builds share the same player, contract and club-edit layout. The editor
+refuses other builds and schemas instead of guessing field offsets.
 
 Build support is keyed on the exact number after `+`, not on the game version:
 `27.0.1` is the game version string, while `2494687` identifies the build that

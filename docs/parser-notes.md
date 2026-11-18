@@ -163,6 +163,16 @@ The FM27 table differs from FM26 in two places:
 - the full-finance leading step is 66 bytes instead of 70;
 - `after_finance` steps 5, 6 and 7 use 2-byte counts instead of 1-byte counts.
 
+Build `27.1.0+2505117` grows the closing fixed block of the full-finance chain
+from 67 to 72 bytes. The five new bytes start at offset 22 of that block: a
+status byte (0..=6 observed) followed by a game date (the null date on the
+tested save). The rest of the block is unchanged and shifts by five. Every
+full-finance row on the tested save (319 of 30,975 rows) uses the longer block;
+rows without a finance chain are unchanged. The reader accepts both sizes and
+keeps the one whose following `after_finance` walk lands on the row's own footer
+ordinal, so an unknown tail shape fails the table walk instead of shifting later
+rows.
+
 Each row has a kind byte (0 ordinary, 12 extended), two length-prefixed names,
 variable finance steps, team counts, affiliate team counts and a 12-byte footer.
 A team controlled by another club is fielded by that parent for player joins, while
