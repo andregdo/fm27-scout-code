@@ -1,5 +1,7 @@
 import type {
   Attributes,
+  CacheCleanupReport,
+  CacheStats,
   Club,
   ClubDetail,
   ClubFilterOptions,
@@ -396,6 +398,28 @@ export const MOCK_SAVE: SaveRecord = {
   clubs: CLUBS.length,
   contracts: MOCK_PLAYERS.length,
 };
+
+export const MOCK_CACHE_STATS: CacheStats = {
+  database_bytes: 24 * 1024 * 1024,
+  reclaimable_bytes: 0,
+  save_count: 1,
+  stale_save_count: 0,
+  stale_player_count: 0,
+  orphan_rows: 0,
+  snapshot_rows: MOCK_PLAYERS.length,
+};
+
+export function mockCleanupCache(): CacheCleanupReport {
+  return {
+    removed_saves: 0,
+    removed_players: 0,
+    removed_orphan_rows: 0,
+    before_bytes: MOCK_CACHE_STATS.database_bytes,
+    after_bytes: MOCK_CACHE_STATS.database_bytes,
+    freed_bytes: 0,
+    vacuumed: true,
+  };
+}
 
 export function mockTransferPlan(uid: number, toClubUid: number): TransferChange {
   const player = MOCK_PLAYERS.find((item) => item.uid === uid) ?? MOCK_PLAYERS[0];

@@ -281,7 +281,9 @@ fallback is marked inferred so the UI never presents it as a competition name.
 Every successful parse writes one `player_snapshots` row per player, keyed by
 `career_key + game_date + player_uid`. `career_key` is the save name, so opening a later state
 of the same career appends points instead of creating an unrelated timeline. Growth queries
-only return points at or before the opened save's game date.
+only return points at or before the opened save's game date. Settings → Local cache → Clean up
+removes caches written by other parser versions and orphaned save rows, then vacuums the
+database; `player_snapshots` is preserved because it is career history rather than save cache.
 
 Role scores are computed from display attributes with per-role weights plus a position-fit
 factor; the best role is stored on the player row for the table, while the full role list is

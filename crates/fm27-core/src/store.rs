@@ -54,6 +54,22 @@ const MAX_STATS_CACHE_ENTRIES: usize = 16;
 /// bound while every recall of a threshold still returns the same rows.
 const MAX_PLAYER_METRIC_THRESHOLDS: usize = 8;
 
+/// Tables that belong to exactly one cached save. They normally cascade when the
+/// save row is deleted, but caches created before those foreign keys were declared
+/// can still hold rows for saves that no longer exist.
+const SAVE_SCOPED_TABLES: &[&str] = &[
+    "players",
+    "player_season_stats",
+    "player_metrics",
+    "contracts",
+    "staff",
+    "clubs",
+    "club_finances",
+    "stadiums",
+    "competitions",
+    "team_competitions",
+];
+
 const PLAYER_ROWS_SELECT: &str =
     "SELECT p.uid, p.name, p.age, p.club_uid, p.club_name, p.league_competition_id,
             p.league_name, p.nation_id, p.ca, p.pa,
@@ -600,6 +616,38 @@ pub struct SaveRecord {
     pub staff: u64,
     pub clubs: u64,
     pub contracts: u64,
+}
+
+/// Local cache footprint and the amount of data a cleanup would remove.
+#[derive(Debug, Clone, Serialize)]
+pub struct CacheStats {
+    /// Size of the SQLite database file, including free pages.
+    pub database_bytes: u64,
+    /// Free pages that `VACUUM` can return to the filesystem.
+    pub reclaimable_bytes: u64,
+    pub save_count: u64,
+    /// Cached saves from a different parser version. `find_cached` cannot reuse
+    /// them, so they are the main source of unreachable cache data.
+    pub stale_save_count: u64,
+    pub stale_player_count: u64,
+    /// Rows whose save row is gone. These can only exist in caches written before
+    /// the schema declared `ON DELETE CASCADE`.
+    pub orphan_rows: u64,
+    /// Career growth history, which cleanup intentionally keeps.
+    pub snapshot_rows: u64,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct CacheCleanupReport {
+    pub removed_saves: u64,
+    pub removed_players: u64,
+    pub removed_orphan_rows: u64,
+    pub before_bytes: u64,
+    pub after_bytes: u64,
+    pub freed_bytes: u64,
+    /// False when another connection held the database during `VACUUM`. The
+    /// deletions still committed and the cache remains valid.
+    pub vacuumed: bool,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -1369,6 +1417,97 @@ impl Store {
         self.conn
             .execute("DELETE FROM saves WHERE id = ?1", params![save_id])?;
         Ok(())
+    }
+
+    /// Report what the local cache holds and what cleanup would remove.
+    pub fn cache_stats(&self, parser_version: &str) -> Result<CacheStats> {
+        let save_count: i64 = self
+            .conn
+            .query_row("SELECT COUNT(*) FROM saves", [], |row| row.get(0))?;
+        let stale_save_count: i64 = self.conn.query_row(
+            "SELECT COUNT(*) FROM saves WHERE parser_version <> ?1",
+            params![parser_version],
+            |row| row.get(0),
+        )?;
+        let stale_player_count: i64 = self.conn.query_row(
+            "SELECT COUNT(*) FROM players p
+             JOIN saves s ON s.id = p.save_id
+             WHERE s.parser_version <> ?1",
+            params![parser_version],
+            |row| row.get(0),
+        )?;
+        let snapshot_rows: i64 =
+            self.conn
+                .query_row("SELECT COUNT(*) FROM player_snapshots", [], |row| {
+                    row.get(0)
+                })?;
+        Ok(CacheStats {
+            database_bytes: database_bytes(&self.conn)?,
+            reclaimable_bytes: reclaimable_bytes(&self.conn)?,
+            save_count: count_u64(save_count),
+            stale_save_count: count_u64(stale_save_count),
+            stale_player_count: count_u64(stale_player_count),
+            orphan_rows: orphan_rows(&self.conn)?,
+            snapshot_rows: count_u64(snapshot_rows),
+        })
+    }
+
+    /// Remove cache data that can never be read again: entries parsed by another
+    /// parser version and rows left behind without a parent save. Career growth
+    /// snapshots are preserved, then `VACUUM` returns freed pages to disk.
+    pub fn cleanup_cache(&mut self, parser_version: &str) -> Result<CacheCleanupReport> {
+        if let Ok(mut cache) = self.stats_cache.lock() {
+            cache.clear();
+        }
+        if let Ok(mut cache) = self.value_finder_cache.lock() {
+            cache.clear();
+        }
+        // Fold the WAL back first so `before_bytes` reflects the file on disk.
+        let _ = self.conn.execute_batch("PRAGMA wal_checkpoint(TRUNCATE);");
+        let before_bytes = database_bytes(&self.conn)?;
+        let removed_players: i64 = self.conn.query_row(
+            "SELECT COUNT(*) FROM players p
+             JOIN saves s ON s.id = p.save_id
+             WHERE s.parser_version <> ?1",
+            params![parser_version],
+            |row| row.get(0),
+        )?;
+
+        let transaction = self.conn.transaction()?;
+        let removed_saves = transaction.execute(
+            "DELETE FROM saves WHERE parser_version <> ?1",
+            params![parser_version],
+        )?;
+        let mut removed_orphan_rows = 0usize;
+        for table in SAVE_SCOPED_TABLES {
+            if !table_exists(&transaction, table)? {
+                continue;
+            }
+            removed_orphan_rows += transaction.execute(
+                &format!(
+                    "DELETE FROM {table}
+                     WHERE save_id NOT IN (SELECT id FROM saves)"
+                ),
+                [],
+            )?;
+        }
+        transaction.commit()?;
+
+        // VACUUM cannot run inside a transaction, and a concurrent export holds a
+        // read transaction. Deletions are already committed if it cannot run.
+        self.conn.busy_timeout(std::time::Duration::from_secs(10))?;
+        let vacuumed = self.conn.execute_batch("VACUUM;").is_ok();
+        let _ = self.conn.execute_batch("PRAGMA wal_checkpoint(TRUNCATE);");
+        let after_bytes = database_bytes(&self.conn)?;
+        Ok(CacheCleanupReport {
+            removed_saves: count_u64(removed_saves as i64),
+            removed_players: count_u64(removed_players),
+            removed_orphan_rows: count_u64(removed_orphan_rows as i64),
+            before_bytes,
+            after_bytes,
+            freed_bytes: before_bytes.saturating_sub(after_bytes),
+            vacuumed,
+        })
     }
 
     pub fn query_players(&self, query: &PlayerQuery) -> Result<PlayerPage> {
@@ -3348,6 +3487,41 @@ fn prune_player_metrics(conn: &Connection, save_id: i64, model: &str, keep: usiz
     Ok(())
 }
 
+fn count_u64(value: i64) -> u64 {
+    value.max(0) as u64
+}
+
+fn database_bytes(conn: &Connection) -> Result<u64> {
+    let page_size: i64 = conn.query_row("PRAGMA page_size", [], |row| row.get(0))?;
+    let page_count: i64 = conn.query_row("PRAGMA page_count", [], |row| row.get(0))?;
+    Ok(count_u64(page_size).saturating_mul(count_u64(page_count)))
+}
+
+fn reclaimable_bytes(conn: &Connection) -> Result<u64> {
+    let page_size: i64 = conn.query_row("PRAGMA page_size", [], |row| row.get(0))?;
+    let freelist: i64 = conn.query_row("PRAGMA freelist_count", [], |row| row.get(0))?;
+    Ok(count_u64(page_size).saturating_mul(count_u64(freelist)))
+}
+
+fn orphan_rows(conn: &Connection) -> Result<u64> {
+    let mut total = 0u64;
+    for table in SAVE_SCOPED_TABLES {
+        if !table_exists(conn, table)? {
+            continue;
+        }
+        let count: i64 = conn.query_row(
+            &format!(
+                "SELECT COUNT(*) FROM {table}
+                 WHERE save_id NOT IN (SELECT id FROM saves)"
+            ),
+            [],
+            |row| row.get(0),
+        )?;
+        total = total.saturating_add(count_u64(count));
+    }
+    Ok(total)
+}
+
 fn migrate(conn: &Connection) -> Result<()> {
     const COLUMNS: &[(&str, &str, &str)] = &[
         ("saves", "save_name", "TEXT NOT NULL DEFAULT ''"),
@@ -3439,7 +3613,8 @@ fn migrate(conn: &Connection) -> Result<()> {
     // Keep this explicit so existing caches are migrated as well.
     conn.execute_batch(
         "DROP INDEX IF EXISTS player_season_stats_player;
-         DROP INDEX IF EXISTS club_finances_club;",
+         DROP INDEX IF EXISTS club_finances_club;
+         DROP TABLE IF EXISTS snapshots;",
     )?;
     Ok(())
 }
@@ -4704,6 +4879,101 @@ mod tests {
         };
         assert_eq!(read_only.query_all(&query).expect("rows").len(), 1);
         assert!(read_only.conn.execute("DELETE FROM players", []).is_err());
+    }
+
+    #[test]
+    fn cleans_stale_saves_and_orphaned_rows_but_keeps_snapshot_history() {
+        let mut store = Store::open_in_memory().expect("store");
+        // Old cache files could predate the cascade foreign keys. Simulate one by
+        // inserting an orphan while enforcement is off.
+        store
+            .conn
+            .execute_batch("PRAGMA foreign_keys=OFF;")
+            .expect("disable foreign keys");
+        store
+            .conn
+            .execute_batch(
+                "INSERT INTO saves
+                   (id, path, file_name, file_size, mtime_ns, fingerprint, game, build,
+                    parser_version, parsed_at)
+                 VALUES
+                   (1, '/tmp/current.fm', 'current.fm', 1, 1, 'current', 'FM27', '27.0.0',
+                    'current', 'now'),
+                   (2, '/tmp/stale.fm', 'stale.fm', 1, 1, 'stale', 'FM27', '27.0.0',
+                    'older', 'now');
+                 INSERT INTO players
+                   (save_id, uid, name, positions_json, attributes_json,
+                    raw_attributes_json, data_json)
+                 VALUES
+                   (1, 1, 'Current', '{}', '{}', '{}', '{}'),
+                   (2, 2, 'Stale', '{}', '{}', '{}', '{}'),
+                   (99, 3, 'Orphan', '{}', '{}', '{}', '{}');
+                 INSERT INTO player_snapshots
+                   (career_key, game_date, player_uid, save_id, recorded_at)
+                 VALUES ('career', '2026-01-01', 1, 2, 'now');
+                 PRAGMA foreign_keys=ON;",
+            )
+            .expect("seed");
+
+        let stats = store.cache_stats("current").expect("stats");
+        assert_eq!(stats.save_count, 2);
+        assert_eq!(stats.stale_save_count, 1);
+        assert_eq!(stats.stale_player_count, 1);
+        assert_eq!(stats.orphan_rows, 1);
+        assert_eq!(stats.snapshot_rows, 1);
+
+        let report = store.cleanup_cache("current").expect("cleanup");
+        assert_eq!(report.removed_saves, 1);
+        assert_eq!(report.removed_players, 1);
+        assert_eq!(report.removed_orphan_rows, 1);
+
+        let stats = store.cache_stats("current").expect("stats after cleanup");
+        assert_eq!(stats.save_count, 1);
+        assert_eq!(stats.stale_save_count, 0);
+        assert_eq!(stats.stale_player_count, 0);
+        assert_eq!(stats.orphan_rows, 0);
+        // Career growth history must survive cache cleanup.
+        assert_eq!(stats.snapshot_rows, 1);
+        assert_eq!(
+            store
+                .conn
+                .query_row("SELECT COUNT(*) FROM players", [], |row| row
+                    .get::<_, i64>(0))
+                .expect("players"),
+            1
+        );
+    }
+
+    #[test]
+    fn cleanup_vacuums_with_an_open_read_pool_connection() {
+        let directory = tempfile::tempdir().expect("tempdir");
+        let path = directory.path().join("cache.db");
+        let mut store = Store::open(&path).expect("store");
+        store
+            .conn
+            .execute_batch(
+                "INSERT INTO saves
+                   (id, path, file_name, file_size, mtime_ns, fingerprint, game, build,
+                    parser_version, parsed_at)
+                 VALUES
+                   (1, '/tmp/current.fm', 'current.fm', 1, 1, 'current', 'FM27', '27.0.0',
+                    'current', 'now'),
+                   (2, '/tmp/stale.fm', 'stale.fm', 1, 1, 'stale', 'FM27', '27.0.0',
+                    'older', 'now');
+                 INSERT INTO players
+                   (save_id, uid, name, positions_json, attributes_json,
+                    raw_attributes_json, data_json)
+                 VALUES
+                   (1, 1, 'Current', '{}', '{}', '{}', '{}'),
+                   (2, 2, 'Stale', '{}', '{}', '{}', '{}');",
+            )
+            .expect("seed");
+        // The desktop app keeps four read-only connections open.
+        let _reader = Store::open_read_only(&path).expect("read-only store");
+
+        let report = store.cleanup_cache("current").expect("cleanup");
+        assert_eq!(report.removed_saves, 1);
+        assert!(report.vacuumed);
     }
 
     #[test]

@@ -476,15 +476,3 @@ CREATE TABLE IF NOT EXISTS player_snapshots (
 CREATE INDEX IF NOT EXISTS player_snapshots_player
   ON player_snapshots(career_key, player_uid, game_date);
 
-CREATE TABLE IF NOT EXISTS snapshots (
-  save_id         INTEGER NOT NULL,
-  game_date       TEXT NOT NULL,
-  player_uid      INTEGER NOT NULL,
-  ca              INTEGER,
-  pa              INTEGER,
-  transfer_value  INTEGER,
-  club_uid        INTEGER,
-  wage            INTEGER,
-  contract_end    TEXT,
-  PRIMARY KEY (save_id, game_date, player_uid)
-);

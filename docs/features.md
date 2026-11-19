@@ -36,6 +36,9 @@
 - Contracts: 44,341 records with wages, start/end dates, loans and clauses.
 - SQLite cache and server-side pagination; the CLI and desktop app share
   `fm27-core`.
+- Cache maintenance: Settings reports the cache database size and can remove
+  caches from older parser versions, delete orphaned rows and reclaim disk
+  space. Current caches and career growth history are preserved.
 - Parsing takes about 1.3 seconds in a release build on an M-series Mac,
   including the competition index.
 

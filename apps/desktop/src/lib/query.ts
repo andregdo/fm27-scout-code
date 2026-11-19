@@ -1,6 +1,7 @@
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import {
   appInfo,
+  cacheStats,
   getManagedClub,
   getClub,
   getClubFilterOptions,
@@ -184,6 +185,15 @@ export function useAppInfo(enabled = true) {
     queryFn: appInfo,
     enabled,
     staleTime: Infinity,
+  });
+}
+
+export function useCacheStats(enabled = true) {
+  return useQuery({
+    queryKey: ["cache-stats"],
+    queryFn: cacheStats,
+    enabled,
+    staleTime: 10_000,
   });
 }
 

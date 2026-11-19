@@ -755,6 +755,22 @@ const en = {
   "settings.deleted": "Cache deleted",
   "settings.cacheNote":
     "The cache is stored only in the local application data directory. Deleting it does not affect the original save; it will be parsed again next time.",
+  "settings.cacheSize": "Cache database · {size}",
+  "settings.cacheStats": "{saves} cached saves · {stale} stale · {orphans} orphaned rows",
+  "settings.cacheReclaimable": "{size} can be reclaimed",
+  "settings.cleanCache": "Clean up",
+  "settings.cleaning": "Cleaning…",
+  "settings.cleanDone": "Cache cleaned",
+  "settings.cleanDoneDescription":
+    "Removed {saves} stale saves and {rows} orphaned rows · freed {size}",
+  "settings.cleanReclaimed": "Reclaimed {size} of free space",
+  "settings.cleanAlready": "Cache already clean",
+  "settings.cleanAlreadyDescription": "No stale saves or orphaned rows were found.",
+  "settings.cleanVacuumSkipped":
+    "Disk space could not be reclaimed because another operation was using the cache; try again later.",
+  "settings.cleanFailed": "Cache cleanup failed",
+  "settings.cacheCleanupNote":
+    "Clean up removes caches from older parser versions, deletes orphaned rows, and reclaims disk space. Caches for the current parser version and career growth history are kept.",
   "settings.nameTables": "Name tables",
   "settings.nationNames": "Country / region names",
   "settings.competitionNames": "Competition names (bundled CSV)",
@@ -1855,6 +1871,21 @@ const zhCN: Record<TranslationKey, string> = {
   "settings.deleted": "已删除缓存",
   "settings.cacheNote":
     "缓存只保存在本机应用数据目录。删除缓存不会影响原存档，下次打开时会重新解析。",
+  "settings.cacheSize": "缓存数据库 · {size}",
+  "settings.cacheStats": "{saves} 个缓存存档 · {stale} 个旧版本缓存 · {orphans} 行孤立数据",
+  "settings.cacheReclaimable": "可回收 {size}",
+  "settings.cleanCache": "清理缓存",
+  "settings.cleaning": "正在清理…",
+  "settings.cleanDone": "缓存已清理",
+  "settings.cleanDoneDescription":
+    "已删除 {saves} 个旧版本存档和 {rows} 行孤立数据 · 释放 {size}",
+  "settings.cleanReclaimed": "已回收 {size} 可用空间",
+  "settings.cleanAlready": "缓存无需清理",
+  "settings.cleanAlreadyDescription": "没有发现旧版本缓存或孤立数据。",
+  "settings.cleanVacuumSkipped": "有操作正在使用缓存，暂时无法回收磁盘空间；请稍后重试。",
+  "settings.cleanFailed": "缓存清理失败",
+  "settings.cacheCleanupNote":
+    "清理会删除旧解析器版本的缓存和孤立数据，并回收磁盘空间；当前解析器版本的缓存和生涯成长历史会保留。",
   "settings.nameTables": "名称表",
   "settings.nationNames": "国家 / 地区名称",
   "settings.competitionNames": "赛事名称（内置 CSV）",

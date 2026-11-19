@@ -962,6 +962,26 @@ export interface SaveRecord {
   contracts: number;
 }
 
+export interface CacheStats {
+  database_bytes: number;
+  reclaimable_bytes: number;
+  save_count: number;
+  stale_save_count: number;
+  stale_player_count: number;
+  orphan_rows: number;
+  snapshot_rows: number;
+}
+
+export interface CacheCleanupReport {
+  removed_saves: number;
+  removed_players: number;
+  removed_orphan_rows: number;
+  before_bytes: number;
+  after_bytes: number;
+  freed_bytes: number;
+  vacuumed: boolean;
+}
+
 export interface ManagedClub {
   club_uid: number;
   club_name: string;
