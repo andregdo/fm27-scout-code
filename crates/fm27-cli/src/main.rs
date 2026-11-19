@@ -65,9 +65,21 @@ enum Command {
         save: PathBuf,
         #[arg(long)]
         output: Option<PathBuf>,
-        /// Include monthly finances, corporate facilities and stadiums.
+        /// Include monthly finances, sponsorships, corporate facilities and stadiums.
         #[arg(long)]
         details: bool,
+    },
+    /// Parse a save and print club sponsorship contracts as JSON.
+    Sponsorships {
+        save: PathBuf,
+        #[arg(long)]
+        output: Option<PathBuf>,
+        /// Keep only one club's contracts.
+        #[arg(long)]
+        club: Option<u32>,
+        /// Keep only contracts running on the save's game date.
+        #[arg(long)]
+        active: bool,
     },
     /// Parse a save and print the competition index as JSON.
     Competitions {
@@ -225,6 +237,14 @@ enum Command {
     },
 }
 
+fn sponsorship_is_active(row: &fm27_core::Sponsorship, game_date: Option<&str>) -> bool {
+    let Some(game_date) = game_date else {
+        return false;
+    };
+    row.start.as_deref().is_none_or(|start| start <= game_date)
+        && row.end.as_deref().is_none_or(|end| end >= game_date)
+}
+
 fn main() -> Result<()> {
     let cli = Cli::parse();
     match cli.command {
@@ -327,12 +347,44 @@ fn main() -> Result<()> {
                     &serde_json::json!({
                         "clubs": parsed.clubs,
                         "club_finances": parsed.club_finances,
+                        "sponsorships": parsed.sponsorships,
                         "stadiums": parsed.stadiums,
                     }),
                 )?;
             } else {
                 serde_json::to_writer(&mut writer, &parsed.clubs)?;
             }
+            writer.flush()?;
+            if output.is_some() {
+                println!();
+            }
+        }
+        Command::Sponsorships {
+            save,
+            output,
+            club,
+            active,
+        } => {
+            let parsed = parse_save(&save)?;
+            let game_date = parsed.summary.game_date.as_deref();
+            let rows: Vec<_> = parsed
+                .sponsorships
+                .into_iter()
+                .filter(|row| club.is_none_or(|uid| row.club_uid == uid))
+                .filter(|row| !active || sponsorship_is_active(row, game_date))
+                .collect();
+            let mut writer: Box<dyn Write> = match &output {
+                Some(path) => Box::new(BufWriter::new(std::fs::File::create(path)?)),
+                None => Box::new(BufWriter::new(io::stdout().lock())),
+            };
+            serde_json::to_writer(
+                &mut writer,
+                &serde_json::json!({
+                    "game_date": game_date,
+                    "count": rows.len(),
+                    "sponsorships": rows,
+                }),
+            )?;
             writer.flush()?;
             if output.is_some() {
                 println!();

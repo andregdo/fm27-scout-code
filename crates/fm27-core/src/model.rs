@@ -522,6 +522,80 @@ pub struct FinanceMonth {
     pub total_expenditure: i64,
 }
 
+/// Active sponsorship income across the save, with the clubs and type codes
+/// that contribute most of it.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SponsorshipOverview {
+    pub game_date: Option<String>,
+    pub clubs_with_sponsorships: u64,
+    pub active_contracts: u64,
+    /// Active income from contracts that store an annual value.
+    pub active_annual: i64,
+    /// Active contracts whose annual value is not stored, and so are not part
+    /// of `active_annual`.
+    pub active_annual_unknown: u64,
+    pub clubs: Vec<SponsorshipClubRow>,
+    pub kinds: Vec<SponsorshipKindRow>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SponsorshipClubRow {
+    pub club_uid: u32,
+    pub club_name: String,
+    /// Active income from contracts that store an annual value.
+    pub active_annual: i64,
+    pub active_count: u64,
+    /// Active contracts whose annual value is not stored.
+    pub unknown_annual_count: u64,
+    pub next_end: Option<String>,
+    /// Latest-month weekly payroll from the club's finance row, if it has one.
+    pub wage_payroll_weekly: Option<i64>,
+    /// `wage_payroll_weekly * 52`, in the save's money unit.
+    pub annual_wage_bill: Option<i64>,
+    /// `active_annual / annual_wage_bill`; absent when payroll is unknown or zero.
+    pub sponsorship_to_wage: Option<f64>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SponsorshipKindRow {
+    pub kind: u8,
+    /// Active income from contracts that store an annual value.
+    pub active_annual: i64,
+    pub active_count: u64,
+    /// Active contracts whose annual value is not stored.
+    pub unknown_annual_count: u64,
+}
+
+/// One primary sponsor contract of one club, running or ended.
+///
+/// The save stores contract terms and a type code, but no sponsor name. Some
+/// deals keep no annual value; `annual_value` is then `None` rather than a
+/// misleading zero. A deal's term is derived from its dates the way the game's
+/// sponsorship screen counts it.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Sponsorship {
+    pub club_uid: u32,
+    pub club_name: String,
+    /// Raw sponsorship type code. Only the codes confirmed on a build's own
+    /// sponsorship screen carry a label in the UI.
+    pub kind: u8,
+    pub start: Option<String>,
+    pub end: Option<String>,
+    /// Whole years from the start to the day after the end, as the screen
+    /// counts them; at least one.
+    pub years: Option<u32>,
+    pub total_value: i64,
+    /// `None` when the save stores zero in the annual-value field.
+    pub annual_value: Option<i64>,
+    /// Percentage the amount falls by on relegation, or rises by on promotion
+    /// for a kit manufacturer. Zero means no change.
+    pub percent: u16,
+    /// True when `percent` is a promotion rise rather than a relegation fall.
+    pub percent_rises: bool,
+    /// The club's reputation when the deal was signed, when stored.
+    pub reputation_at_signing: Option<u16>,
+}
+
 /// A ground from the save's stadium table. The save stores no direct club -> ground
 /// pointer; ownership is a separate field, and home use would require the fixture
 /// calendar.
@@ -555,6 +629,7 @@ pub struct ClubLink {
 pub struct ClubDetail {
     pub club: Club,
     pub finance_months: Vec<FinanceMonth>,
+    pub sponsorships: Vec<Sponsorship>,
     pub stadiums: Vec<Stadium>,
     pub child_clubs: Vec<ClubLink>,
 }
@@ -612,6 +687,11 @@ pub struct ParseReport {
     pub competitions_with_name: usize,
     pub club_finance_months: usize,
     pub clubs_with_finance: usize,
+    pub sponsorships: usize,
+    pub clubs_with_sponsorships: usize,
+    pub sponsor_lists: usize,
+    pub empty_sponsor_lists: usize,
+    pub rejected_sponsor_lists: usize,
     pub stadiums: usize,
     pub clubs_with_corporate_facilities: usize,
     pub markerless_players: usize,

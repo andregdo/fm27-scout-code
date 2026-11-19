@@ -34,6 +34,8 @@ import type {
   SaveSummary,
   SquadAnalysis,
   SquadTeam,
+  Sponsorship,
+  SponsorshipOverview,
   Stadium,
   StaffFilterOptions,
   StaffAttributes,
@@ -1455,9 +1457,93 @@ export function mockStatsMoneyball(request: StatsMoneyballRequest): StatsMoneyba
   };
 }
 
+function mockSponsorshipsFor(
+  uid: number,
+  name: string,
+  hasFinance: boolean,
+): Sponsorship[] {
+  if (!hasFinance) return [];
+  const annual = Math.max(1_000_000, 12_000_000 - (uid % 6) * 1_000_000);
+  return [
+    {
+      club_uid: uid,
+      club_name: name,
+      kind: 1,
+      start: "2026-07-01",
+      end: "2029-06-30",
+      years: 3,
+      total_value: annual * 3,
+      annual_value: annual,
+      percent: 10,
+      percent_rises: false,
+      reputation_at_signing: 7500,
+    },
+    {
+      club_uid: uid,
+      club_name: name,
+      kind: 4,
+      start: "2026-07-01",
+      end: "2027-06-30",
+      years: 1,
+      total_value: annual,
+      annual_value: annual,
+      percent: 0,
+      percent_rises: false,
+      reputation_at_signing: 7200,
+    },
+    {
+      club_uid: uid,
+      club_name: name,
+      kind: 19,
+      start: "2024-07-01",
+      end: "2026-06-30",
+      years: 2,
+      total_value: 2_000_000,
+      annual_value: null,
+      percent: 0,
+      percent_rises: false,
+      reputation_at_signing: null,
+    },
+    {
+      club_uid: uid,
+      club_name: name,
+      kind: 11,
+      start: "2027-07-01",
+      end: "2030-06-30",
+      years: 3,
+      total_value: 12_000_000,
+      annual_value: 4_000_000,
+      percent: 0,
+      percent_rises: false,
+      reputation_at_signing: 8000,
+    },
+  ];
+}
+
+function mockSponsorshipActive(
+  row: Sponsorship,
+  gameDate: string = MOCK_SUMMARY.game_date ?? "",
+): boolean {
+  return (
+    (row.start == null || row.start <= gameDate) &&
+    (row.end == null || row.end >= gameDate)
+  );
+}
+
 const MOCK_CLUB_ROWS: ClubRow[] = CLUBS.map(([name, uid, nation], index) => {
   const hasFinance = index < 6;
   const balance = hasFinance ? 80_000_000 - index * 9_000_000 : null;
+  const sponsorships = mockSponsorshipsFor(uid, name, hasFinance);
+  const activeSponsorships = sponsorships.filter((row) => mockSponsorshipActive(row));
+  const sponsorshipAnnual = activeSponsorships.reduce(
+    (total, row) => total + (row.annual_value ?? 0),
+    0,
+  );
+  const sponsorshipNextEnd =
+    activeSponsorships
+      .map((row) => row.end)
+      .filter((end): end is string => end != null)
+      .sort()[0] ?? null;
   return {
     uid,
     unique_id: 700000 + uid,
@@ -1490,6 +1576,9 @@ const MOCK_CLUB_ROWS: ClubRow[] = CLUBS.map(([name, uid, nation], index) => {
     total_wage: hasFinance ? 44_000_000 - index * 2_000_000 : 12_000_000,
     stadium_count: index % 4 === 0 ? 0 : 1,
     stadium_capacity: index % 4 === 0 ? null : 60_000 - index * 2_000,
+    sponsorship_annual: activeSponsorships.length > 0 ? sponsorshipAnnual : null,
+    sponsorship_count: activeSponsorships.length,
+    sponsorship_next_end: sponsorshipNextEnd,
   };
 });
 
@@ -1563,6 +1652,20 @@ export function mockQueryClubs(query: ClubQuery): ClubPage {
   }
   if (query.player_count_min != null) rows = rows.filter((row) => row.player_count >= query.player_count_min!);
   if (query.has_stadium != null) rows = rows.filter((row) => (row.stadium_count > 0) === query.has_stadium);
+  if (query.has_sponsorships != null) {
+    rows = rows.filter(
+      (row) => (row.sponsorship_count > 0) === query.has_sponsorships,
+    );
+  }
+  if (query.sponsorship_annual_min != null || query.sponsorship_annual_max != null) {
+    rows = rows.filter((row) =>
+      inRange(
+        row.sponsorship_annual,
+        query.sponsorship_annual_min,
+        query.sponsorship_annual_max,
+      ),
+    );
+  }
   const rules = query.sort?.length
     ? query.sort
     : [{ by: query.sort_by ?? "reputation", dir: query.sort_dir ?? "desc" }];
@@ -1580,6 +1683,10 @@ export function mockQueryClubs(query: ClubQuery): ClubPage {
           case "average_ca": return row.average_ca;
           case "total_value": return row.total_value;
           case "stadium_capacity": return row.stadium_capacity;
+          case "sponsorship":
+          case "sponsorship_annual": return row.sponsorship_annual;
+          case "sponsorship_count": return row.sponsorship_count;
+          case "sponsorship_next_end": return row.sponsorship_next_end;
           default: return row.reputation;
         }
       };
@@ -1652,6 +1759,11 @@ export function mockClubDetail(uid: number): ClubDetail | null {
           total_income: 3_500_000 + index * 200_000,
           total_expenditure: 2_500_000 + index * 300_000,
         }));
+  const sponsorships = mockSponsorshipsFor(
+    row.uid,
+    row.name,
+    row.finance_month != null,
+  );
   const stadiums: Stadium[] =
     row.stadium_count > 0
       ? [
@@ -1677,6 +1789,7 @@ export function mockClubDetail(uid: number): ClubDetail | null {
   return {
     club,
     finance_months: financeMonths,
+    sponsorships,
     stadiums,
     child_clubs: [],
   };
@@ -1687,6 +1800,9 @@ export function mockClubFilterOptions(): ClubFilterOptions {
   for (const row of MOCK_CLUB_ROWS) {
     if (row.nation_name) nations.set(row.nation_id, row.nation_name);
   }
+  const sponsorshipValues = MOCK_CLUB_ROWS.map((row) => row.sponsorship_annual).filter(
+    (value): value is number => value != null,
+  );
   return {
     nations: [...nations.entries()].map(([id, name]) => ({
       id,
@@ -1704,6 +1820,93 @@ export function mockClubFilterOptions(): ClubFilterOptions {
     max_wage_budget: 900_000,
     clubs_with_finances: MOCK_CLUB_ROWS.filter((row) => row.finance_month != null).length,
     clubs_with_stadiums: MOCK_CLUB_ROWS.filter((row) => row.stadium_count > 0).length,
+    min_sponsorship_annual:
+      sponsorshipValues.length > 0 ? Math.min(...sponsorshipValues) : null,
+    max_sponsorship_annual:
+      sponsorshipValues.length > 0 ? Math.max(...sponsorshipValues) : null,
+    clubs_with_sponsorships: MOCK_CLUB_ROWS.filter(
+      (row) => row.sponsorship_count > 0,
+    ).length,
+  };
+}
+
+export function mockSponsorshipOverview(): SponsorshipOverview {
+  const clubs: SponsorshipOverview["clubs"] = MOCK_CLUB_ROWS.map((row) => {
+    const active = mockSponsorshipsFor(
+      row.uid,
+      row.name,
+      row.finance_month != null,
+    ).filter((sponsorship) => mockSponsorshipActive(sponsorship));
+    const activeAnnual = active.reduce(
+      (total, sponsorship) => total + (sponsorship.annual_value ?? 0),
+      0,
+    );
+    const unknownAnnualCount = active.filter(
+      (sponsorship) => sponsorship.annual_value == null,
+    ).length;
+    const nextEnd =
+      active
+        .map((sponsorship) => sponsorship.end)
+        .filter((end): end is string => end != null)
+        .sort()[0] ?? null;
+    const annualWageBill =
+      row.wage_payroll_weekly != null ? row.wage_payroll_weekly * 52 : null;
+    return {
+      club_uid: row.uid,
+      club_name: row.name,
+      active_annual: activeAnnual,
+      active_count: active.length,
+      unknown_annual_count: unknownAnnualCount,
+      next_end: nextEnd,
+      wage_payroll_weekly: row.wage_payroll_weekly,
+      annual_wage_bill: annualWageBill,
+      sponsorship_to_wage:
+        unknownAnnualCount === 0 &&
+        annualWageBill != null &&
+        annualWageBill > 0
+          ? activeAnnual / annualWageBill
+          : null,
+    };
+  })
+    .filter((row) => row.active_count > 0)
+    .sort((left, right) => right.active_annual - left.active_annual);
+
+  const kinds = new Map<
+    number,
+    { active_annual: number; active_count: number; unknown_annual_count: number }
+  >();
+  for (const row of MOCK_CLUB_ROWS) {
+    for (const sponsorship of mockSponsorshipsFor(
+      row.uid,
+      row.name,
+      row.finance_month != null,
+    )) {
+      if (!mockSponsorshipActive(sponsorship)) continue;
+      const current = kinds.get(sponsorship.kind) ?? {
+        active_annual: 0,
+        active_count: 0,
+        unknown_annual_count: 0,
+      };
+      current.active_annual += sponsorship.annual_value ?? 0;
+      current.active_count += 1;
+      if (sponsorship.annual_value == null) current.unknown_annual_count += 1;
+      kinds.set(sponsorship.kind, current);
+    }
+  }
+
+  return {
+    game_date: MOCK_SUMMARY.game_date,
+    clubs_with_sponsorships: clubs.length,
+    active_contracts: clubs.reduce((total, row) => total + row.active_count, 0),
+    active_annual: clubs.reduce((total, row) => total + row.active_annual, 0),
+    active_annual_unknown: clubs.reduce(
+      (total, row) => total + row.unknown_annual_count,
+      0,
+    ),
+    clubs,
+    kinds: [...kinds.entries()]
+      .map(([kind, value]) => ({ kind, ...value }))
+      .sort((left, right) => right.active_annual - left.active_annual),
   };
 }
 

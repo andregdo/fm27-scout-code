@@ -9,7 +9,7 @@ use fm27_core::container::SaveFile;
 use fm27_core::editor::{EditChange, PlayerEditRequest, PlayerEditor, TransferChange};
 use fm27_core::export::ExportWriter;
 use fm27_core::metadata::read_metadata;
-use fm27_core::model::{Attributes, ClubDetail, Positions};
+use fm27_core::model::{Attributes, ClubDetail, Positions, SponsorshipOverview};
 use fm27_core::store::{
     CacheCleanupReport, CacheStats, ClubFilterOptions, ClubPage, ClubQuery, FilterOptions,
     PlayerPage, PlayerQuery, SaveRecord, SnapshotPoint, SquadAnalysis, StaffFilterOptions,
@@ -483,6 +483,17 @@ async fn club_filter_options(
 ) -> Result<ClubFilterOptions, String> {
     run_read_command(state, move |store| {
         store.club_filter_options(save_id).map_err(error_string)
+    })
+    .await
+}
+
+#[tauri::command]
+async fn sponsorship_overview(
+    state: State<'_, AppState>,
+    save_id: i64,
+) -> Result<SponsorshipOverview, String> {
+    run_read_command(state, move |store| {
+        store.sponsorship_overview(save_id).map_err(error_string)
     })
     .await
 }
@@ -1241,6 +1252,7 @@ pub fn run() {
             get_player,
             get_club,
             club_filter_options,
+            sponsorship_overview,
             edit_player,
             edit_club,
             save_pending_changes,

@@ -34,6 +34,7 @@ pub mod roles;
 pub mod roster;
 pub mod scouting;
 pub mod season_stats;
+pub mod sponsorships;
 pub mod stadiums;
 pub mod staff;
 pub mod stats_moneyball;
@@ -48,7 +49,8 @@ pub use editor::{EditChange, PlayerEditor, TransferChange};
 pub use error::{Error, Result};
 pub use model::{
     Club, ClubDetail, ClubLink, Contract, FinanceMonth, ManagedClub, ParseReport, Player,
-    SaveSummary, Stadium, Staff,
+    SaveSummary, Sponsorship, SponsorshipClubRow, SponsorshipKindRow, SponsorshipOverview, Stadium,
+    Staff,
 };
 pub use parse::{
     ParseProgress, ParsedSave, parse_save, parse_save_with_progress, parser_display_version,

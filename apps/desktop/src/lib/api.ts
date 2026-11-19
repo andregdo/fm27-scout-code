@@ -36,6 +36,7 @@ import type {
   StaffPage,
   StaffQuery,
   StatsMoneyballPage,
+  SponsorshipOverview,
   SimilarStatsPlayer,
   SquadNeeds,
   SquadNeedsRequest,
@@ -71,6 +72,7 @@ import {
   mockSquadAnalysis,
   mockSimilarStatsPlayers,
   mockSquadNeeds,
+  mockSponsorshipOverview,
   mockStatsMoneyball,
   mockTransferPlan,
   mockValueFinder,
@@ -165,6 +167,13 @@ export async function getClub(saveId: number, uid: number): Promise<ClubDetail |
 export async function getClubFilterOptions(saveId: number): Promise<ClubFilterOptions> {
   if (!isTauri) return mockClubFilterOptions();
   return timedInvoke<ClubFilterOptions>("club_filter_options", { saveId });
+}
+
+export async function getSponsorshipOverview(
+  saveId: number,
+): Promise<SponsorshipOverview> {
+  if (!isTauri) return mockSponsorshipOverview();
+  return timedInvoke<SponsorshipOverview>("sponsorship_overview", { saveId });
 }
 
 export async function editClub(

@@ -11,8 +11,14 @@ import {
   X,
 } from "lucide-react";
 import { useClubDetail, useSquadAnalysis } from "@/lib/query";
-import { facilityRatingLabel, nationLabel } from "@/lib/labels";
-import { formatNumber } from "@/lib/i18n";
+import {
+  facilityRatingLabel,
+  nationLabel,
+  sponsorshipKindLabel,
+  sponsorshipLabelsConfirmed,
+} from "@/lib/labels";
+import { formatNumber, type TranslationKey } from "@/lib/i18n";
+import type { Sponsorship } from "@/lib/types";
 import { useI18n } from "@/lib/useI18n";
 import { caLabelClass, cn, formatDate, initials, paTone } from "@/lib/utils";
 import { useAppStore } from "@/store/app";
@@ -20,13 +26,14 @@ import { SquadNeedsSection } from "./SquadNeeds";
 import { Badge, Button, EmptyState } from "./ui";
 import { EditClubDialog } from "./EditClubDialog";
 
-type ClubTab = "overview" | "squad" | "finances" | "stadium";
+type ClubTab = "overview" | "squad" | "finances" | "sponsorships" | "stadium";
 
 export function ClubInspector() {
   const { t, locale, formatMoney, formatValue, formatWage } = useI18n();
   const selectedClubUid = useAppStore((state) => state.selectedClubUid);
   const setSelectedClubUid = useAppStore((state) => state.setSelectedClubUid);
   const setClubEditOpen = useAppStore((state) => state.setClubEditOpen);
+  const summary = useAppStore((state) => state.summary);
   const { data: detail, isLoading } = useClubDetail(selectedClubUid);
   const [tab, setTab] = useState<ClubTab>("overview");
   const tabBarRef = useRef<HTMLDivElement>(null);
@@ -166,12 +173,14 @@ export function ClubInspector() {
             ["overview", t("clubs.inspector.overview")],
             ["squad", t("clubs.inspector.squad")],
             ["finances", t("clubs.inspector.finances")],
+            ["sponsorships", t("clubs.inspector.sponsorships")],
             ["stadium", t("clubs.inspector.stadium")],
           ] as [ClubTab, string][]
         ).map(([value, label]) => (
           <button
             key={value}
             type="button"
+            data-testid={`club-tab-${value}`}
             onClick={() => setTab(value)}
             className={cn(
               "focus-ring shrink-0 whitespace-nowrap rounded-t-lg border-b-2 px-2.5 py-2 text-[10px] font-medium transition-colors",
@@ -191,6 +200,13 @@ export function ClubInspector() {
         )}
         {tab === "squad" && <SquadTab clubUid={club.uid} />}
         {tab === "finances" && <FinancesTab detail={detail} />}
+        {tab === "sponsorships" && (
+          <SponsorshipsTab
+            detail={detail}
+            gameDate={summary?.game_date ?? null}
+            build={summary?.build ?? null}
+          />
+        )}
         {tab === "stadium" && <StadiumTab detail={detail} />}
       </div>
 
@@ -553,6 +569,265 @@ function FinancesTab({ detail }: { detail: import("@/lib/types").ClubDetail }) {
               </span>
             </div>
           ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+type SponsorshipStatus = "active" | "future" | "expired" | "unknown";
+
+const SPONSORSHIP_STATUS_KEYS: Record<SponsorshipStatus, TranslationKey> = {
+  active: "clubs.sponsorship.active",
+  future: "clubs.sponsorship.future",
+  expired: "clubs.sponsorship.expired",
+  unknown: "clubs.sponsorship.unknown",
+};
+
+function sponsorshipStatus(
+  start: string | null,
+  end: string | null,
+  gameDate: string | null,
+): SponsorshipStatus {
+  if (!start || !end || !gameDate) return "unknown";
+  if (start > gameDate) return "future";
+  if (end < gameDate) return "expired";
+  return "active";
+}
+
+function SponsorshipsTab({
+  detail,
+  gameDate,
+  build,
+}: {
+  detail: import("@/lib/types").ClubDetail;
+  gameDate: string | null;
+  build: string | null;
+}) {
+  const { t, formatMoney } = useI18n();
+  const rows = useMemo(
+    () =>
+      detail.sponsorships.map((row) => ({
+        ...row,
+        status: sponsorshipStatus(row.start, row.end, gameDate),
+      })),
+    [detail.sponsorships, gameDate],
+  );
+  if (rows.length === 0) {
+    return (
+      <div className="rounded-xl border border-dashed border-[var(--line)] p-4 text-center">
+        <div className="text-[11px] font-medium text-[var(--ink)]">
+          {t("clubs.inspector.noSponsorships")}
+        </div>
+        <div className="mt-1 text-[10px] leading-relaxed text-[var(--muted)]">
+          {t("clubs.inspector.noSponsorshipsHint")}
+        </div>
+      </div>
+    );
+  }
+  const active = rows
+    .filter((row) => row.status === "active")
+    .sort(
+      (left, right) =>
+        (right.annual_value ?? -1) - (left.annual_value ?? -1),
+    );
+  const other = rows
+    .filter((row) => row.status !== "active")
+    .sort((left, right) => {
+      if (left.status !== right.status) return left.status === "expired" ? -1 : 1;
+      return (left.end ?? "").localeCompare(right.end ?? "");
+    });
+  const activeAnnual = active.reduce(
+    (sum, row) => sum + (row.annual_value ?? 0),
+    0,
+  );
+  const unknownAnnualCount = active.filter(
+    (row) => row.annual_value == null,
+  ).length;
+  const nextExpiry =
+    active
+      .map((row) => row.end)
+      .filter((end): end is string => end != null)
+      .sort()[0] ?? null;
+  const labelsConfirmed = sponsorshipLabelsConfirmed(build);
+  return (
+    <div className="space-y-3">
+      <div className="grid grid-cols-3 gap-1.5">
+        <Info
+          label={t("clubs.sponsorship.activeAnnual")}
+          value={formatMoney(activeAnnual)}
+        />
+        <Info
+          label={t("clubs.sponsorship.activeCount")}
+          value={String(active.length)}
+        />
+        <Info
+          label={t("clubs.sponsorship.nextExpiry")}
+          value={nextExpiry ?? "—"}
+        />
+      </div>
+      {unknownAnnualCount > 0 && (
+        <p className="text-[9px] leading-relaxed text-[var(--muted)]">
+          {t("clubs.sponsorship.unknownAnnualCount", {
+            count: unknownAnnualCount,
+          })}
+        </p>
+      )}
+
+      <div
+        data-testid="sponsorship-active"
+        className="rounded-xl border border-[var(--line)] bg-[var(--surface-2)] p-2.5"
+      >
+        <div className="text-[9px] uppercase tracking-wider text-[var(--muted)]">
+          {t("clubs.sponsorship.activeSection")}
+        </div>
+        <div className="mt-2 space-y-1.5">
+          {active.length === 0 ? (
+            <div className="text-[10px] text-[var(--muted)]">
+              {t("clubs.sponsorship.noActive")}
+            </div>
+          ) : (
+            active.map((row, index) => (
+              <SponsorshipRow
+                key={`${row.kind}-${row.start}-${index}`}
+                row={row}
+                build={build}
+                showStatus={false}
+              />
+            ))
+          )}
+        </div>
+      </div>
+
+      {other.length > 0 && (
+        <details className="rounded-xl border border-[var(--line)] bg-[var(--surface-2)] p-2.5">
+          <summary className="cursor-pointer text-[9px] uppercase tracking-wider text-[var(--muted)]">
+            {t("clubs.sponsorship.other")} ({other.length})
+          </summary>
+          <div className="mt-2 space-y-1.5">
+            {other.map((row, index) => (
+              <SponsorshipRow
+                key={`${row.kind}-${row.start}-${index}`}
+                row={row}
+                build={build}
+                showStatus
+              />
+            ))}
+          </div>
+        </details>
+      )}
+
+      <p className="text-[9px] leading-relaxed text-[var(--muted)]">
+        {t("clubs.sponsorship.historyHint")}
+      </p>
+      <p className="text-[9px] leading-relaxed text-[var(--muted)]">
+        {t("clubs.sponsorship.noNames")}
+      </p>
+      {!labelsConfirmed && (
+        <p className="text-[9px] leading-relaxed text-[var(--muted)]">
+          {t("clubs.sponsorship.labelsUnverified")}
+        </p>
+      )}
+    </div>
+  );
+}
+
+function SponsorshipRow({
+  row,
+  build,
+  showStatus,
+}: {
+  row: Sponsorship & { status: SponsorshipStatus };
+  build: string | null;
+  showStatus: boolean;
+}) {
+  const { t, locale, formatMoney } = useI18n();
+  const label =
+    sponsorshipKindLabel(row.kind, build, locale) ??
+    t("clubs.sponsorship.typeCode", { kind: row.kind });
+  const estimatedAnnual =
+    row.annual_value == null &&
+    row.total_value > 0 &&
+    row.years != null &&
+    row.years > 0
+      ? Math.round(row.total_value / row.years)
+      : null;
+  return (
+    <div
+      data-testid="sponsorship-row"
+      data-status={row.status}
+      className="rounded-lg border border-[var(--line)] bg-[var(--surface)] px-2.5 py-2"
+    >
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <div className="flex items-center gap-1.5">
+            <span className="truncate text-[10px] font-semibold text-[var(--ink)]">
+              {label}
+            </span>
+            {showStatus && (
+              <span
+                className={cn(
+                  "shrink-0 rounded border border-[var(--line)] px-1 py-0.5 text-[8px]",
+                  row.status === "expired"
+                    ? "text-[var(--muted)]"
+                    : "text-[var(--accent-strong)]",
+                )}
+              >
+                {t(SPONSORSHIP_STATUS_KEYS[row.status])}
+              </span>
+            )}
+          </div>
+          <div className="mt-0.5 font-mono text-[9px] text-[var(--muted)]">
+            {row.start ?? "—"} → {row.end ?? "—"}
+          </div>
+          <div className="mt-1 flex flex-wrap gap-x-2 gap-y-0.5 text-[8px] text-[var(--muted)]">
+            {row.years != null && (
+              <span>
+                {t("clubs.sponsorship.term")}{" "}
+                {t("clubs.sponsorship.years", { count: row.years })}
+              </span>
+            )}
+            {row.reputation_at_signing != null && (
+              <span>
+                {t("clubs.sponsorship.signedReputation")}{" "}
+                {formatNumber(row.reputation_at_signing, locale)}
+              </span>
+            )}
+            {row.percent > 0 && (
+              <span>
+                {row.percent_rises
+                  ? t("clubs.sponsorship.promotionRise", {
+                      percent: row.percent,
+                    })
+                  : t("clubs.sponsorship.relegationFall", {
+                      percent: row.percent,
+                    })}
+              </span>
+            )}
+          </div>
+        </div>
+        <div className="shrink-0 text-right">
+          <div
+            className="font-mono text-[11px] font-semibold text-[var(--ink)]"
+            title={
+              row.annual_value == null
+                ? estimatedAnnual != null
+                  ? t("clubs.sponsorship.annualEstimate", {
+                      value: formatMoney(estimatedAnnual),
+                    })
+                  : t("clubs.sponsorship.annualUnknown")
+                : undefined
+            }
+          >
+            {row.annual_value != null
+              ? formatMoney(row.annual_value)
+              : estimatedAnnual != null
+                ? `≈ ${formatMoney(estimatedAnnual)}`
+                : "—"}
+          </div>
+          <div className="font-mono text-[8px] text-[var(--muted)]">
+            {t("clubs.sponsorship.total")} {formatMoney(row.total_value)}
+          </div>
         </div>
       </div>
     </div>

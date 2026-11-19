@@ -181,6 +181,60 @@ the registration club remains available in the contract chain.
 The anchor scan remains as a fragment fallback. On full saves the counted table is
 required; a framing failure is reported rather than guessed around.
 
+## Club sponsorships
+
+The primary sponsor list is owned by the club record. It usually follows a
+club's monthly finance chain, but it also exists for clubs whose finance class
+is smaller, so the parser scans the whole record instead of only the chain end.
+The prefix, counted entries, suffix and rows are documented in
+[fm27-layout.md](fm27-layout.md). Only a structurally valid prefix establishes a
+list, later sponsor-shaped bytes are not a fallback, and a positive count with
+any invalid row rejects the whole list. An explicit zero count is a decoded empty
+list. Two valid lists in one record are treated as ambiguous and rejected. FM27
+stores boundary dates unchanged, so a row may end one day before it starts; the
+validator allows `end - start >= -1 day`, matching the current fmsave FM27
+layout.
+
+The fixed suffix is 68 bytes through build `27.0.1+2503222` and 73 bytes on
+`27.1.0+2505117`. The five new bytes are the same status byte and game date that
+grow the full-finance closing block, inserted at suffix offset 22; the later
+fixed bytes, dates and primary count shift by five. The parser tries both shapes
+and accepts exactly one; two valid shapes fail closed.
+
+Each row also stores the club's reputation when the deal was signed and a
+percentage that falls on relegation (or rises on promotion for kind 22, the kit
+manufacturer). The annual field is zero for some deals, active ones included.
+That is reported as unknown, not as zero income. The term is derived from the
+start and end dates the way the game's screen counts it, not from
+`total_value / annual_value`.
+
+Measured coverage after scanning every club record:
+
+| Save | Valid lists | Rows | Rejected lists |
+|---|---:|---:|---:|
+| `27.0.0+2486695` | 167 | 1,094 | 0 |
+| `27.0.1+2503222` | 318 | 1,627 | 1 |
+| `27.1.0+2505117` | 318 | 1,625 | 1 |
+
+The rejected lists on 27.0.1 and 27.1.0 belong to Ipswich Town: one row stores
+values near `u32::MAX` (a total above the 2,000,000,000 bound, with an annual
+value above its total), so the list is skipped and reported in the parse warning
+instead of exposing the sentinel. On `27.0.0`, every row the locally installed
+fmsave 0.7.0 oracle returns is present in the Rust output by type, dates, total
+and annual value; the oracle itself covers 121 clubs, while Rust now reads 167.
+The newer fmsave layout returns the 17 extra Málaga boundary rows the 0.7.0
+checkout rejects.
+
+The rows hold contract terms, not a sponsor name. Expired contracts retain
+their stored annual value, so current income must be filtered against the save's
+game date. A running contract's annual value can still differ from the game's
+sponsorship-income display. The game's sponsorship screen named codes 1 Main
+Kit, 3 and 23 Stadium, 4 General, 5 Individual TV Deal, 7 Club Membership, 8 Away
+Kit, 9 Additional Kit Sponsor, 11 Back of Shirt, 12 Shorts, 13 Training Kit, 14
+Youth Team, 15 Training Ground, 16 Continental Competition, 19 Shirt Sleeve and
+22 Kit Manufacturer on 27.0.0/27.0.1. Codes 2, 6, 17 and 18 remain unnamed, and
+27.1.0 keeps raw codes until its screen is checked.
+
 ## Nations and club gender
 
 The nation table is a counted table of 251 rows. Each row opens with `0x00`, is walked

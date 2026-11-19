@@ -11,6 +11,7 @@ import {
   getPlayerRoles,
   getScoutAdvice,
   getScoutOverview,
+  getSponsorshipOverview,
   getStaffFilterOptions,
   getSquadAnalysis,
   listSaves,
@@ -121,6 +122,9 @@ export function buildClubQuery(
     youth_recruitment_max: filters.youthRecruitmentMax,
     player_count_min: filters.playerCountMin,
     has_stadium: filters.hasStadium,
+    has_sponsorships: filters.hasSponsorships,
+    sponsorship_annual_min: filters.sponsorshipAnnualMin,
+    sponsorship_annual_max: filters.sponsorshipAnnualMax,
     sort,
     sort_by: primary?.by ?? "reputation",
     sort_dir: primary?.dir ?? "desc",
@@ -336,6 +340,15 @@ export function useClubDetail(uid: number | null) {
     queryKey: ["club", saveId, uid],
     queryFn: () => getClub(saveId!, uid!),
     enabled: saveId != null && uid != null,
+    staleTime: 60_000,
+  });
+}
+
+export function useSponsorshipOverview(saveId: number | null) {
+  return useQuery({
+    queryKey: ["sponsorship-overview", saveId],
+    queryFn: () => getSponsorshipOverview(saveId!),
+    enabled: saveId != null,
     staleTime: 60_000,
   });
 }

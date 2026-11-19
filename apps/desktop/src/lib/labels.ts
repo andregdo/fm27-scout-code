@@ -1,4 +1,4 @@
-import { translate, type Locale } from "./i18n";
+import { translate, type Locale, type TranslationKey } from "./i18n";
 import { SAVE_UNITS, type CurrencyCode } from "./currency";
 import { ATTRIBUTE_LABELS, type Clause } from "./types";
 import { formatValue, formatWage } from "./utils";
@@ -140,6 +140,48 @@ export function facilityRatingLabel(
   const index = facilityTierIndex(value);
   if (index == null) return null;
   return FACILITY_TIER_LABELS[locale][index];
+}
+
+/**
+ * Sponsorship type labels confirmed against the game's own sponsorship screen
+ * on FM27 27.0.0 and 27.0.1. Build 27.1.0 keeps the raw code until its screen
+ * is checked; unnamed codes 2, 6, 17 and 18 stay numeric on every build.
+ */
+const SPONSORSHIP_KIND_KEYS: Record<number, TranslationKey> = {
+  1: "clubs.sponsorship.kind.mainKit",
+  3: "clubs.sponsorship.kind.stadium",
+  4: "clubs.sponsorship.kind.general",
+  5: "clubs.sponsorship.kind.individualTv",
+  7: "clubs.sponsorship.kind.membership",
+  8: "clubs.sponsorship.kind.awayKit",
+  9: "clubs.sponsorship.kind.additionalKit",
+  11: "clubs.sponsorship.kind.backOfShirt",
+  12: "clubs.sponsorship.kind.shorts",
+  13: "clubs.sponsorship.kind.trainingKit",
+  14: "clubs.sponsorship.kind.youthTeam",
+  15: "clubs.sponsorship.kind.trainingGround",
+  16: "clubs.sponsorship.kind.continental",
+  19: "clubs.sponsorship.kind.shirtSleeve",
+  22: "clubs.sponsorship.kind.kitManufacturer",
+  23: "clubs.sponsorship.kind.stadium",
+};
+
+export function sponsorshipLabelsConfirmed(
+  build: string | null | undefined,
+): boolean {
+  return Boolean(
+    build && (build.startsWith("27.0.0") || build.startsWith("27.0.1")),
+  );
+}
+
+export function sponsorshipKindLabel(
+  kind: number,
+  build: string | null | undefined,
+  locale: Locale,
+): string | null {
+  if (!sponsorshipLabelsConfirmed(build)) return null;
+  const key = SPONSORSHIP_KIND_KEYS[kind];
+  return key ? translate(locale, key) : null;
 }
 
 const SEVERITY_LABELS: Record<Locale, Record<number, string>> = {

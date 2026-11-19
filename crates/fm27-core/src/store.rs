@@ -16,8 +16,8 @@ use crate::layout::{
 use crate::model::{
     Attributes, Clause, Club, ClubDetail, ClubLink, Competition, Contract, FinanceMonth,
     GENERATED_UNIQUE_ID_MINIMUM, ManagedClub, ParseReport, Personality, Player, Positions,
-    SaveSummary, Stadium, Staff, StaffAttributes, Trait, TransferValueState, attribute_index,
-    is_generated_unique_id,
+    SaveSummary, Sponsorship, SponsorshipClubRow, SponsorshipKindRow, SponsorshipOverview, Stadium,
+    Staff, StaffAttributes, Trait, TransferValueState, attribute_index, is_generated_unique_id,
 };
 use crate::parse::ParsedSave;
 use crate::scouting::{
@@ -48,6 +48,23 @@ const CLUB_CTE: &str = "WITH stats AS (
         GROUP BY owner_club_uid
       )";
 
+/// Appended to [`CLUB_CTE`] when sponsorship columns or filters are needed.
+/// `game_date` is the save's own clock; an unknown date leaves no active rows.
+const SPONSOR_CTE: &str = ",
+      spons AS (
+        SELECT s.save_id, s.club_uid,
+               SUM(CASE WHEN s.annual_known = 1 THEN s.annual_value END)
+                 AS sponsorship_annual,
+               COUNT(*) AS sponsorship_count,
+               MIN(s.end_date) AS sponsorship_next_end
+        FROM club_sponsorships s
+        JOIN saves sv ON sv.id = s.save_id
+        WHERE s.save_id = ? AND sv.game_date IS NOT NULL
+          AND (s.start_date IS NULL OR s.start_date <= sv.game_date)
+          AND (s.end_date IS NULL OR s.end_date >= sv.game_date)
+        GROUP BY s.save_id, s.club_uid
+      )";
+
 const MAX_STATS_CACHE_ENTRIES: usize = 16;
 /// Minute thresholds are user-controlled. Keep only the most recently used
 /// thresholds per save and model so the persisted stats cache cannot grow without
@@ -65,6 +82,7 @@ const SAVE_SCOPED_TABLES: &[&str] = &[
     "staff",
     "clubs",
     "club_finances",
+    "club_sponsorships",
     "stadiums",
     "competitions",
     "team_competitions",
@@ -446,6 +464,9 @@ pub struct ClubQuery {
     pub last_position_min: Option<u8>,
     pub last_position_max: Option<u8>,
     pub has_finances: Option<bool>,
+    pub has_sponsorships: Option<bool>,
+    pub sponsorship_annual_min: Option<i64>,
+    pub sponsorship_annual_max: Option<i64>,
     pub balance_min: Option<i64>,
     pub balance_max: Option<i64>,
     pub transfer_budget_min: Option<i64>,
@@ -510,6 +531,11 @@ pub struct ClubRow {
     pub total_wage: Option<i64>,
     pub stadium_count: u64,
     pub stadium_capacity: Option<i64>,
+    /// Active sponsorship income at the save's game date; `None` when no
+    /// contract is active.
+    pub sponsorship_annual: Option<i64>,
+    pub sponsorship_count: u64,
+    pub sponsorship_next_end: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -532,7 +558,10 @@ pub struct ClubFilterOptions {
     pub max_transfer_budget: Option<i64>,
     pub min_wage_budget: Option<i64>,
     pub max_wage_budget: Option<i64>,
+    pub min_sponsorship_annual: Option<i64>,
+    pub max_sponsorship_annual: Option<i64>,
     pub clubs_with_finances: u64,
+    pub clubs_with_sponsorships: u64,
     pub clubs_with_stadiums: u64,
 }
 
@@ -1243,6 +1272,33 @@ impl Store {
                     finance.total_income,
                     finance.total_expenditure,
                 ])?;
+            }
+        }
+
+        {
+            let mut sponsor_stmt = transaction.prepare(
+                "INSERT INTO club_sponsorships
+                 (save_id, club_uid, ordinal, kind, start_date, end_date, total_value,
+                  annual_value, annual_known, percent, reputation_at_signing)
+                 VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11)",
+            )?;
+            let mut ordinals: HashMap<u32, u32> = HashMap::new();
+            for sponsor in &parsed.sponsorships {
+                let ordinal = ordinals.entry(sponsor.club_uid).or_insert(0);
+                sponsor_stmt.execute(params![
+                    save_id,
+                    sponsor.club_uid,
+                    *ordinal,
+                    sponsor.kind,
+                    sponsor.start,
+                    sponsor.end,
+                    sponsor.total_value,
+                    sponsor.annual_value.unwrap_or(0),
+                    i64::from(sponsor.annual_value.is_some()),
+                    sponsor.percent,
+                    sponsor.reputation_at_signing,
+                ])?;
+                *ordinal += 1;
             }
         }
 
@@ -2771,21 +2827,27 @@ impl Store {
         let mut where_params: Vec<Value> = Vec::new();
         let where_sql = build_club_where(query, &mut where_params)?;
         let uses_aggregate_filters = club_query_uses_aggregate_filters(query);
+        let count_cte = if uses_aggregate_filters {
+            format!("{CLUB_CTE}{SPONSOR_CTE}")
+        } else {
+            CLUB_CTE.to_owned()
+        };
         let count_sql = if uses_aggregate_filters {
             format!(
-                "{} SELECT COUNT(*)
+                "{count_cte} SELECT COUNT(*)
                  FROM clubs c
                  LEFT JOIN stats s ON s.club_uid = c.uid
                  LEFT JOIN stads st ON st.owner_club_uid = c.uid
-                 WHERE {where_sql}",
-                CLUB_CTE
+                 LEFT JOIN spons sp ON sp.save_id = c.save_id AND sp.club_uid = c.uid
+                 WHERE {where_sql}"
             )
         } else {
             format!("SELECT COUNT(*) FROM clubs c WHERE {where_sql}")
         };
-        let mut count_params = Vec::with_capacity(where_params.len() + 2);
-        if uses_aggregate_filters {
-            count_params.push(Value::Integer(query.save_id));
+        // stats, stads and spons each take the save id.
+        let aggregate_cte_params = if uses_aggregate_filters { 3 } else { 0 };
+        let mut count_params = Vec::with_capacity(where_params.len() + aggregate_cte_params);
+        for _ in 0..aggregate_cte_params {
             count_params.push(Value::Integer(query.save_id));
         }
         count_params.extend(where_params.iter().cloned());
@@ -2798,8 +2860,9 @@ impl Store {
         let page = query.page.unwrap_or(0);
         let page_size = query.page_size.unwrap_or(100).clamp(1, 500);
         let order = club_order_by(query);
+        let page_cte = format!("{CLUB_CTE}{SPONSOR_CTE}");
         let sql = format!(
-            "{} SELECT c.uid, c.unique_id, COALESCE(c.name, ''), COALESCE(c.short_name, ''),
+            "{page_cte} SELECT c.uid, c.unique_id, COALESCE(c.name, ''), COALESCE(c.short_name, ''),
                     c.nation_id, c.nation_name, c.fa_nation_id, c.fa_nation_name, c.city_id,
                     c.gender, c.reputation, c.last_league_position, c.league_competition_id,
                     c.league_name, c.parent_club_uid, c.parent_club_name, c.corporate_facilities,
@@ -2807,16 +2870,19 @@ impl Store {
                     c.transfer_budget_allocated, c.transfer_budget_remaining,
                     c.wage_budget_weekly, c.wage_payroll_weekly, c.net,
                     COALESCE(s.player_count, 0), s.average_age, s.average_ca, s.total_value,
-                    s.total_wage, COALESCE(st.stadium_count, 0), st.stadium_capacity
+                    s.total_wage, COALESCE(st.stadium_count, 0), st.stadium_capacity,
+                    sp.sponsorship_annual, COALESCE(sp.sponsorship_count, 0),
+                    sp.sponsorship_next_end
              FROM clubs c
              LEFT JOIN stats s ON s.club_uid = c.uid
              LEFT JOIN stads st ON st.owner_club_uid = c.uid
+             LEFT JOIN spons sp ON sp.save_id = c.save_id AND sp.club_uid = c.uid
              WHERE {where_sql}
              {order}
-             LIMIT ? OFFSET ?",
-            CLUB_CTE
+             LIMIT ? OFFSET ?"
         );
-        let mut page_params = Vec::with_capacity(where_params.len() + 4);
+        let mut page_params = Vec::with_capacity(where_params.len() + 5);
+        page_params.push(Value::Integer(query.save_id));
         page_params.push(Value::Integer(query.save_id));
         page_params.push(Value::Integer(query.save_id));
         page_params.extend(where_params);
@@ -2856,6 +2922,9 @@ impl Store {
                 total_wage: row.get(28)?,
                 stadium_count: row.get::<_, i64>(29)? as u64,
                 stadium_capacity: row.get(30)?,
+                sponsorship_annual: row.get(31)?,
+                sponsorship_count: row.get::<_, i64>(32)? as u64,
+                sponsorship_next_end: row.get(33)?,
             })
         })?;
         let rows = rows.collect::<std::result::Result<Vec<_>, _>>()?;
@@ -2964,11 +3033,13 @@ impl Store {
                 .unwrap_or_default(),
         };
         let finance_months = self.club_finance_months(save_id, uid)?;
+        let sponsorships = self.club_sponsorships(save_id, uid)?;
         let stadiums = self.club_stadiums(save_id, uid)?;
         let child_clubs = self.club_children(save_id, uid)?;
         Ok(Some(ClubDetail {
             club,
             finance_months,
+            sponsorships,
             stadiums,
             child_clubs,
         }))
@@ -3003,6 +3074,40 @@ impl Store {
                 expenditure_excluding_transfers: row.get(12)?,
                 total_income: row.get(13)?,
                 total_expenditure: row.get(14)?,
+            })
+        })?;
+        rows.collect::<std::result::Result<Vec<_>, _>>()
+            .map_err(Error::from)
+    }
+
+    fn club_sponsorships(&self, save_id: i64, club_uid: u32) -> Result<Vec<Sponsorship>> {
+        let mut statement = self.conn.prepare(
+            "SELECT s.club_uid, COALESCE(c.name, ''), s.kind, s.start_date, s.end_date,
+                    s.total_value, s.annual_value, s.annual_known, s.percent,
+                    s.reputation_at_signing
+             FROM club_sponsorships s
+             LEFT JOIN clubs c ON c.save_id = s.save_id AND c.uid = s.club_uid
+             WHERE s.save_id = ?1 AND s.club_uid = ?2
+             ORDER BY s.ordinal",
+        )?;
+        let rows = statement.query_map(params![save_id, club_uid], |row| {
+            let start: Option<String> = row.get(3)?;
+            let end: Option<String> = row.get(4)?;
+            let annual_value: Option<i64> = row.get(6)?;
+            let annual_known: i64 = row.get(7)?;
+            let kind: u8 = row.get(2)?;
+            Ok(Sponsorship {
+                club_uid: row.get(0)?,
+                club_name: row.get(1)?,
+                kind,
+                years: crate::sponsorships::sponsorship_years(start.as_deref(), end.as_deref()),
+                start,
+                end,
+                total_value: row.get(5)?,
+                annual_value: (annual_known != 0).then_some(annual_value.unwrap_or(0)),
+                percent: row.get(8)?,
+                percent_rises: kind == 22,
+                reputation_at_signing: row.get(9)?,
             })
         })?;
         rows.collect::<std::result::Result<Vec<_>, _>>()
@@ -3055,6 +3160,116 @@ impl Store {
         })?;
         rows.collect::<std::result::Result<Vec<_>, _>>()
             .map_err(Error::from)
+    }
+
+    pub fn sponsorship_overview(&self, save_id: i64) -> Result<SponsorshipOverview> {
+        let game_date = self.save_game_date(save_id)?;
+        let Some(game_date) = game_date else {
+            return Ok(SponsorshipOverview {
+                game_date: None,
+                clubs_with_sponsorships: 0,
+                active_contracts: 0,
+                active_annual: 0,
+                active_annual_unknown: 0,
+                clubs: Vec::new(),
+                kinds: Vec::new(),
+            });
+        };
+        let (clubs_with_sponsorships, active_contracts, active_annual, active_annual_unknown) =
+            self.conn.query_row(
+                "SELECT COUNT(DISTINCT s.club_uid), COUNT(*),
+                        COALESCE(SUM(CASE WHEN s.annual_known = 1 THEN s.annual_value END), 0),
+                        COALESCE(SUM(CASE WHEN s.annual_known = 0 THEN 1 ELSE 0 END), 0)
+                 FROM club_sponsorships s
+                 WHERE s.save_id = ?1
+                   AND (s.start_date IS NULL OR s.start_date <= ?2)
+                   AND (s.end_date IS NULL OR s.end_date >= ?2)",
+                params![save_id, game_date],
+                |row| {
+                    Ok((
+                        row.get::<_, u64>(0)?,
+                        row.get::<_, u64>(1)?,
+                        row.get::<_, i64>(2)?,
+                        row.get::<_, u64>(3)?,
+                    ))
+                },
+            )?;
+        let mut club_stmt = self.conn.prepare(
+            "SELECT s.club_uid, COALESCE(c.name, ''),
+                    COALESCE(SUM(CASE WHEN s.annual_known = 1 THEN s.annual_value END), 0),
+                    COUNT(*),
+                    SUM(CASE WHEN s.annual_known = 0 THEN 1 ELSE 0 END),
+                    MIN(s.end_date), c.wage_payroll_weekly
+             FROM club_sponsorships s
+             JOIN clubs c ON c.save_id = s.save_id AND c.uid = s.club_uid
+             WHERE s.save_id = ?1
+               AND (s.start_date IS NULL OR s.start_date <= ?2)
+               AND (s.end_date IS NULL OR s.end_date >= ?2)
+             GROUP BY s.club_uid
+             ORDER BY
+               SUM(CASE WHEN s.annual_known = 1 THEN s.annual_value END) DESC,
+               s.club_uid
+             LIMIT 100",
+        )?;
+        let clubs = club_stmt
+            .query_map(params![save_id, game_date], |row| {
+                let active_annual = row.get::<_, i64>(2)?;
+                let unknown_annual_count = row.get::<_, i64>(4)? as u64;
+                let wage_payroll_weekly = row.get::<_, Option<i64>>(6)?;
+                let annual_wage_bill = wage_payroll_weekly.and_then(|value| value.checked_mul(52));
+                let sponsorship_to_wage = if unknown_annual_count == 0 {
+                    annual_wage_bill
+                        .filter(|value| *value > 0)
+                        .map(|value| active_annual as f64 / value as f64)
+                } else {
+                    None
+                };
+                Ok(SponsorshipClubRow {
+                    club_uid: row.get(0)?,
+                    club_name: row.get(1)?,
+                    active_annual,
+                    active_count: row.get::<_, i64>(3)? as u64,
+                    unknown_annual_count,
+                    next_end: row.get(5)?,
+                    wage_payroll_weekly,
+                    annual_wage_bill,
+                    sponsorship_to_wage,
+                })
+            })?
+            .collect::<std::result::Result<Vec<_>, _>>()?;
+        let mut kind_stmt = self.conn.prepare(
+            "SELECT s.kind,
+                    COALESCE(SUM(CASE WHEN s.annual_known = 1 THEN s.annual_value END), 0),
+                    COUNT(*),
+                    COALESCE(SUM(CASE WHEN s.annual_known = 0 THEN 1 ELSE 0 END), 0)
+             FROM club_sponsorships s
+             WHERE s.save_id = ?1
+               AND (s.start_date IS NULL OR s.start_date <= ?2)
+               AND (s.end_date IS NULL OR s.end_date >= ?2)
+             GROUP BY s.kind
+             ORDER BY
+               SUM(CASE WHEN s.annual_known = 1 THEN s.annual_value END) DESC,
+               s.kind",
+        )?;
+        let kinds = kind_stmt
+            .query_map(params![save_id, game_date], |row| {
+                Ok(SponsorshipKindRow {
+                    kind: row.get(0)?,
+                    active_annual: row.get(1)?,
+                    active_count: row.get::<_, i64>(2)? as u64,
+                    unknown_annual_count: row.get::<_, i64>(3)? as u64,
+                })
+            })?
+            .collect::<std::result::Result<Vec<_>, _>>()?;
+        Ok(SponsorshipOverview {
+            game_date: Some(game_date),
+            clubs_with_sponsorships,
+            active_contracts,
+            active_annual,
+            active_annual_unknown,
+            clubs,
+            kinds,
+        })
     }
 
     pub fn club_filter_options(&self, save_id: i64) -> Result<ClubFilterOptions> {
@@ -3110,6 +3325,27 @@ impl Store {
             params![save_id],
             |row| row.get::<_, u64>(0),
         )?;
+        let (clubs_with_sponsorships, min_sponsorship_annual, max_sponsorship_annual) =
+            self.conn.query_row(
+                "SELECT COUNT(*), MIN(active_annual), MAX(active_annual) FROM (
+                     SELECT SUM(CASE WHEN s.annual_known = 1 THEN s.annual_value END)
+                              AS active_annual
+                     FROM club_sponsorships s
+                     JOIN saves sv ON sv.id = s.save_id
+                     WHERE s.save_id = ?1 AND sv.game_date IS NOT NULL
+                       AND (s.start_date IS NULL OR s.start_date <= sv.game_date)
+                       AND (s.end_date IS NULL OR s.end_date >= sv.game_date)
+                     GROUP BY s.club_uid
+                 )",
+                params![save_id],
+                |row| {
+                    Ok((
+                        row.get::<_, u64>(0)?,
+                        row.get::<_, Option<i64>>(1)?,
+                        row.get::<_, Option<i64>>(2)?,
+                    ))
+                },
+            )?;
         let clubs_with_stadiums = self.conn.query_row(
             "SELECT COUNT(DISTINCT owner_club_uid) FROM stadiums
              WHERE save_id = ?1 AND owner_club_uid IS NOT NULL",
@@ -3127,7 +3363,10 @@ impl Store {
             max_transfer_budget: ranges.5,
             min_wage_budget: ranges.6,
             max_wage_budget: ranges.7,
+            min_sponsorship_annual,
+            max_sponsorship_annual,
             clubs_with_finances,
+            clubs_with_sponsorships,
             clubs_with_stadiums,
         })
     }
@@ -3617,6 +3856,13 @@ fn migrate(conn: &Connection) -> Result<()> {
         ("clubs", "wage_budget_weekly", "INTEGER"),
         ("clubs", "wage_payroll_weekly", "INTEGER"),
         ("clubs", "net", "INTEGER"),
+        (
+            "club_sponsorships",
+            "annual_known",
+            "INTEGER NOT NULL DEFAULT 0",
+        ),
+        ("club_sponsorships", "percent", "INTEGER NOT NULL DEFAULT 0"),
+        ("club_sponsorships", "reputation_at_signing", "INTEGER"),
     ];
     for (table, column, definition) in COLUMNS {
         if !table_exists(conn, table)? {
@@ -3772,6 +4018,12 @@ fn map_staff_row(row: &Row<'_>) -> rusqlite::Result<StaffRow> {
     })
 }
 
+fn club_query_uses_sponsor_filters(query: &ClubQuery) -> bool {
+    query.has_sponsorships.is_some()
+        || query.sponsorship_annual_min.is_some()
+        || query.sponsorship_annual_max.is_some()
+}
+
 fn club_query_uses_aggregate_filters(query: &ClubQuery) -> bool {
     query.player_count_min.is_some()
         || query.player_count_max.is_some()
@@ -3781,6 +4033,7 @@ fn club_query_uses_aggregate_filters(query: &ClubQuery) -> bool {
         || query.total_value_max.is_some()
         || query.has_stadium.is_some()
         || query.stadium_capacity_min.is_some()
+        || club_query_uses_sponsor_filters(query)
 }
 
 fn build_club_where(query: &ClubQuery, params: &mut Vec<Value>) -> Result<String> {
@@ -3838,6 +4091,20 @@ fn build_club_where(query: &ClubQuery, params: &mut Vec<Value>) -> Result<String
             "c.finance_month IS NULL".to_owned()
         });
     }
+    if let Some(has_sponsorships) = query.has_sponsorships {
+        clauses.push(if has_sponsorships {
+            "COALESCE(sp.sponsorship_count, 0) > 0".to_owned()
+        } else {
+            "COALESCE(sp.sponsorship_count, 0) = 0".to_owned()
+        });
+    }
+    add_range(
+        query.sponsorship_annual_min,
+        query.sponsorship_annual_max,
+        "sp.sponsorship_annual",
+        params,
+        &mut clauses,
+    );
     add_range(
         query.balance_min,
         query.balance_max,
@@ -3978,6 +4245,9 @@ fn club_sort_expression(by: &str) -> String {
         "average_ca" => "s.average_ca".to_owned(),
         "total_value" => "s.total_value".to_owned(),
         "total_wage" => "s.total_wage".to_owned(),
+        "sponsorship" | "sponsorship_annual" => "sp.sponsorship_annual".to_owned(),
+        "sponsorship_count" => "sp.sponsorship_count".to_owned(),
+        "sponsorship_next_end" => "sp.sponsorship_next_end".to_owned(),
         "stadium_capacity" => "st.stadium_capacity".to_owned(),
         "uid" => "c.uid".to_owned(),
         _ => "c.reputation".to_owned(),
@@ -5656,5 +5926,213 @@ mod tests {
         assert_eq!(team(4).label.kind, "youth");
         assert!(team(5).inferred);
         assert_eq!(team(5).label.kind, "unknown");
+    }
+
+    #[test]
+    fn club_detail_reads_sponsorships_in_stored_order() {
+        let store = Store::open_in_memory().expect("store");
+        store
+            .conn
+            .execute_batch(
+                "INSERT INTO saves
+                   (id, path, file_name, file_size, mtime_ns, fingerprint, game, build,
+                    parser_version, parsed_at)
+                 VALUES (1, '/tmp/test.fm', 'test.fm', 1, 1, 'fp', 'FM27', '27.0.0',
+                         'test', 'now');
+                 INSERT INTO clubs
+                   (save_id, uid, name, short_name, nation_id, fa_nation_id, teams_json)
+                 VALUES (1, 42, 'Test FC', 'TFC', 0, 0, '[]');
+                 INSERT INTO club_sponsorships
+                   (save_id, club_uid, ordinal, kind, start_date, end_date, total_value,
+                    annual_value, annual_known)
+                 VALUES
+                   (1, 42, 0, 1, '2026-07-01', '2030-06-30', 40000000, 10000000, 1),
+                   (1, 42, 1, 4, '2025-07-01', '2026-06-30', 2000000, 2000000, 1);",
+            )
+            .expect("seed");
+
+        let detail = store.get_club(1, 42).expect("club query").expect("detail");
+        assert_eq!(detail.sponsorships.len(), 2);
+        assert_eq!(detail.sponsorships[0].kind, 1);
+        assert_eq!(detail.sponsorships[0].club_name, "Test FC");
+        assert_eq!(detail.sponsorships[0].start.as_deref(), Some("2026-07-01"));
+        assert_eq!(detail.sponsorships[0].annual_value, Some(10_000_000));
+        assert_eq!(detail.sponsorships[0].years, Some(4));
+        assert_eq!(detail.sponsorships[1].kind, 4);
+    }
+
+    #[test]
+    fn club_query_filters_and_sorts_active_sponsorship_income() {
+        let store = Store::open_in_memory().expect("store");
+        store
+            .conn
+            .execute_batch(
+                "INSERT INTO saves
+                   (id, path, file_name, file_size, mtime_ns, fingerprint, game, build,
+                    save_name, career_key, game_date, parser_version, parsed_at)
+                 VALUES (1, '/tmp/test.fm', 'test.fm', 1, 1, 'fp', 'FM27', '27.0.0',
+                         'Test', 'test', '2026-07-13', 'test', 'now');
+                 INSERT INTO clubs
+                   (save_id, uid, name, short_name, nation_id, fa_nation_id, reputation,
+                    wage_payroll_weekly, teams_json)
+                 VALUES
+                   (1, 42, 'Test FC', 'TFC', 0, 0, 100, 1000, '[]'),
+                   (1, 43, 'No Sponsors', 'NOS', 0, 0, 90, NULL, '[]');
+                 INSERT INTO club_sponsorships
+                   (save_id, club_uid, ordinal, kind, start_date, end_date, total_value,
+                    annual_value, annual_known)
+                 VALUES
+                   (1, 42, 0, 1, '2026-07-01', '2029-06-30', 30000000, 10000000, 1),
+                   (1, 42, 1, 4, '2020-07-01', '2025-06-30', 5000000, 5000000, 1);",
+            )
+            .expect("seed");
+
+        let page = store
+            .query_clubs(&ClubQuery {
+                save_id: 1,
+                ..ClubQuery::default()
+            })
+            .expect("plain club query");
+        assert_eq!(page.total, 2);
+        assert_eq!(page.rows.len(), 2);
+
+        let page = store
+            .query_clubs(&ClubQuery {
+                save_id: 1,
+                has_sponsorships: Some(true),
+                ..ClubQuery::default()
+            })
+            .expect("sponsorship filter");
+        assert_eq!(page.total, 1);
+        assert_eq!(page.rows[0].uid, 42);
+        assert_eq!(page.rows[0].sponsorship_annual, Some(10_000_000));
+        assert_eq!(page.rows[0].sponsorship_count, 1);
+        assert_eq!(
+            page.rows[0].sponsorship_next_end.as_deref(),
+            Some("2029-06-30")
+        );
+
+        let page = store
+            .query_clubs(&ClubQuery {
+                save_id: 1,
+                has_sponsorships: Some(false),
+                ..ClubQuery::default()
+            })
+            .expect("no-sponsorship filter");
+        assert_eq!(page.total, 1);
+        assert_eq!(page.rows[0].uid, 43);
+        assert_eq!(page.rows[0].sponsorship_annual, None);
+        assert_eq!(page.rows[0].sponsorship_count, 0);
+
+        let page = store
+            .query_clubs(&ClubQuery {
+                save_id: 1,
+                sponsorship_annual_min: Some(5_000_000),
+                sort_by: Some("sponsorship".to_owned()),
+                sort_dir: Some("desc".to_owned()),
+                ..ClubQuery::default()
+            })
+            .expect("sponsorship range and sort");
+        assert_eq!(page.total, 1);
+        assert_eq!(page.rows[0].uid, 42);
+
+        let options = store.club_filter_options(1).expect("filter options");
+        assert_eq!(options.clubs_with_sponsorships, 1);
+        assert_eq!(options.min_sponsorship_annual, Some(10_000_000));
+        assert_eq!(options.max_sponsorship_annual, Some(10_000_000));
+
+        let overview = store.sponsorship_overview(1).expect("overview");
+        assert_eq!(overview.game_date.as_deref(), Some("2026-07-13"));
+        assert_eq!(overview.clubs_with_sponsorships, 1);
+        assert_eq!(overview.active_contracts, 1);
+        assert_eq!(overview.active_annual, 10_000_000);
+        assert_eq!(overview.clubs[0].club_uid, 42);
+        assert_eq!(overview.clubs[0].annual_wage_bill, Some(52_000));
+        assert_eq!(
+            overview.clubs[0].sponsorship_to_wage,
+            Some(10_000_000.0 / 52_000.0)
+        );
+        assert_eq!(overview.kinds.len(), 1);
+        assert_eq!(overview.kinds[0].kind, 1);
+    }
+
+    #[test]
+    fn unknown_annual_values_are_not_treated_as_zero_income() {
+        let store = Store::open_in_memory().expect("store");
+        store
+            .conn
+            .execute_batch(
+                "INSERT INTO saves
+                   (id, path, file_name, file_size, mtime_ns, fingerprint, game, build,
+                    save_name, career_key, game_date, parser_version, parsed_at)
+                 VALUES (1, '/tmp/test.fm', 'test.fm', 1, 1, 'fp', 'FM27', '27.0.0',
+                         'Test', 'test', '2026-07-13', 'test', 'now');
+                 INSERT INTO clubs
+                   (save_id, uid, name, short_name, nation_id, fa_nation_id, reputation,
+                    wage_payroll_weekly, teams_json)
+                 VALUES
+                   (1, 50, 'Unset Annual', 'UNA', 0, 0, 90, 1000, '[]'),
+                   (1, 51, 'Known Annual', 'KNA', 0, 0, 95, 2000, '[]');
+                 INSERT INTO club_sponsorships
+                   (save_id, club_uid, ordinal, kind, start_date, end_date, total_value,
+                    annual_value, annual_known)
+                 VALUES
+                   (1, 50, 0, 1, '2026-07-01', '2029-06-30', 9000000, 0, 0),
+                   (1, 51, 0, 1, '2026-07-01', '2029-06-30', 15000000, 5000000, 1);",
+            )
+            .expect("seed");
+
+        let page = store
+            .query_clubs(&ClubQuery {
+                save_id: 1,
+                has_sponsorships: Some(true),
+                sort_by: Some("sponsorship".to_owned()),
+                sort_dir: Some("desc".to_owned()),
+                ..ClubQuery::default()
+            })
+            .expect("club query");
+        assert_eq!(page.total, 2);
+        assert_eq!(page.rows[0].uid, 51);
+        assert_eq!(page.rows[0].sponsorship_annual, Some(5_000_000));
+        assert_eq!(page.rows[1].uid, 50);
+        assert_eq!(page.rows[1].sponsorship_annual, None);
+        assert_eq!(page.rows[1].sponsorship_count, 1);
+
+        let page = store
+            .query_clubs(&ClubQuery {
+                save_id: 1,
+                sponsorship_annual_min: Some(0),
+                ..ClubQuery::default()
+            })
+            .expect("annual filter");
+        assert_eq!(page.total, 1);
+        assert_eq!(page.rows[0].uid, 51);
+
+        let options = store.club_filter_options(1).expect("filter options");
+        assert_eq!(options.clubs_with_sponsorships, 2);
+        assert_eq!(options.min_sponsorship_annual, Some(5_000_000));
+        assert_eq!(options.max_sponsorship_annual, Some(5_000_000));
+
+        let overview = store.sponsorship_overview(1).expect("overview");
+        assert_eq!(overview.clubs_with_sponsorships, 2);
+        assert_eq!(overview.active_contracts, 2);
+        assert_eq!(overview.active_annual, 5_000_000);
+        assert_eq!(overview.active_annual_unknown, 1);
+        let unset = overview
+            .clubs
+            .iter()
+            .find(|row| row.club_uid == 50)
+            .expect("unknown club");
+        assert_eq!(unset.active_annual, 0);
+        assert_eq!(unset.unknown_annual_count, 1);
+        assert_eq!(unset.sponsorship_to_wage, None);
+        let kind = overview
+            .kinds
+            .iter()
+            .find(|row| row.kind == 1)
+            .expect("kind");
+        assert_eq!(kind.active_annual, 5_000_000);
+        assert_eq!(kind.active_count, 2);
+        assert_eq!(kind.unknown_annual_count, 1);
     }
 }

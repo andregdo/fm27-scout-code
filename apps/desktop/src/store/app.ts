@@ -85,6 +85,9 @@ export interface ClubFilters {
   youthRecruitmentMax: number | null;
   playerCountMin: number | null;
   hasStadium: boolean | null;
+  hasSponsorships: boolean | null;
+  sponsorshipAnnualMin: number | null;
+  sponsorshipAnnualMax: number | null;
 }
 
 export const EMPTY_CLUB_FILTERS: ClubFilters = {
@@ -112,6 +115,9 @@ export const EMPTY_CLUB_FILTERS: ClubFilters = {
   youthRecruitmentMax: null,
   playerCountMin: null,
   hasStadium: null,
+  hasSponsorships: null,
+  sponsorshipAnnualMin: null,
+  sponsorshipAnnualMax: null,
 };
 
 export interface StaffFilters {
