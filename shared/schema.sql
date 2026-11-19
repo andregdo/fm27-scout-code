@@ -46,6 +46,9 @@ CREATE TABLE IF NOT EXISTS players (
   ca              INTEGER,
   pa              INTEGER,
   pa_range_code   INTEGER,
+  reputation_home INTEGER NOT NULL DEFAULT 0,
+  reputation_current INTEGER NOT NULL DEFAULT 0,
+  reputation_world INTEGER NOT NULL DEFAULT 0,
   height_cm       INTEGER,
   left_foot       INTEGER,
   right_foot      INTEGER,
@@ -404,6 +407,31 @@ CREATE TABLE IF NOT EXISTS club_finances (
 
 -- The primary key already covers (save_id, club_uid, month).
 
+-- Primary sponsor contracts from the list inside each club record. `ordinal`
+-- keeps the order the save stores; the save holds no sponsor name, only the raw
+-- type code and the contract terms. `annual_known` is 0 where the save stores
+-- no annual value; `annual_value` is then 0 and must not be treated as income.
+CREATE TABLE IF NOT EXISTS club_sponsorships (
+  save_id                 INTEGER NOT NULL,
+  club_uid                INTEGER NOT NULL,
+  ordinal                 INTEGER NOT NULL,
+  kind                    INTEGER NOT NULL,
+  start_date              TEXT,
+  end_date                TEXT,
+  total_value             INTEGER NOT NULL DEFAULT 0,
+  annual_value            INTEGER NOT NULL DEFAULT 0,
+  annual_known            INTEGER NOT NULL DEFAULT 0,
+  percent                 INTEGER NOT NULL DEFAULT 0,
+  reputation_at_signing   INTEGER,
+  PRIMARY KEY (save_id, club_uid, ordinal),
+  FOREIGN KEY (save_id) REFERENCES saves(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS club_sponsorships_club
+  ON club_sponsorships(save_id, club_uid);
+CREATE INDEX IF NOT EXISTS club_sponsorships_end
+  ON club_sponsorships(save_id, end_date);
+
 CREATE TABLE IF NOT EXISTS stadiums (
   save_id         INTEGER NOT NULL,
   uid             INTEGER NOT NULL,
@@ -476,15 +504,3 @@ CREATE TABLE IF NOT EXISTS player_snapshots (
 CREATE INDEX IF NOT EXISTS player_snapshots_player
   ON player_snapshots(career_key, player_uid, game_date);
 
-CREATE TABLE IF NOT EXISTS snapshots (
-  save_id         INTEGER NOT NULL,
-  game_date       TEXT NOT NULL,
-  player_uid      INTEGER NOT NULL,
-  ca              INTEGER,
-  pa              INTEGER,
-  transfer_value  INTEGER,
-  club_uid        INTEGER,
-  wage            INTEGER,
-  contract_end    TEXT,
-  PRIMARY KEY (save_id, game_date, player_uid)
-);

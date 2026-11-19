@@ -56,8 +56,22 @@
   ID cannot be told apart from a database person by the save alone.
 - Monthly club finances, corporate facilities and the detailed facility ratings
   exist only for the league nations the save tracks. In the reference FM27 save
-  that is 122 clubs out of more than 26,000; other clubs show their basic
+  that is 118–122 clubs out of more than 26,000; other clubs show their basic
   profile, squad and owned stadiums but no finance series or facility ratings.
+- Sponsorship lists are stored in the club record and are read for every club,
+  not only those with a finance series: 167 clubs on the `27.0.0` reference save
+  and 318 on `27.0.1`/`27.1.0`. Clubs outside those lists store none; the save
+  does not cover all 26,000 clubs.
+- The save stores no sponsor name, only a raw type code and contract terms.
+  Type labels are confirmed against the game's sponsorship screen on FM27
+  `27.0.0` and `27.0.1`; `27.1.0` shows raw codes, and codes 2, 6, 17 and 18
+  stay numeric on every build.
+- A sponsor list whose prefix is structurally owned but whose rows fail the
+  checks is skipped as a whole and reported in the parse warning. Expired
+  contracts keep their stored annual value and are not current income. A running
+  contract's annual value can differ from the game's sponsorship-income display;
+  when the save stores zero, the UI treats the annual value as unknown and shows
+  an estimate from the total and date-derived term instead.
 - Corporate, training, youth, junior-coaching and youth-recruitment ratings are
   parsed for the clubs that keep a finance chain. English Youth Level is read
   from the installed game's `eng_youth_grades.edt`; it is not stored in the save,

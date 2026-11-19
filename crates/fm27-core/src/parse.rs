@@ -21,7 +21,7 @@ use crate::layout::{
 use crate::metadata::{SaveMetadata, read_metadata};
 use crate::model::{
     Attributes, Club, Competition, Contract, FinanceMonth, ManagedClub, ParseReport, Player,
-    Positions, Reputation, SaveSummary, Stadium, Staff, TransferValueState,
+    Positions, Reputation, SaveSummary, Sponsorship, Stadium, Staff, TransferValueState,
 };
 use crate::names::NamePools;
 use crate::nations::NationIndex;
@@ -50,6 +50,7 @@ pub struct ParsedSave {
     pub competitions: Vec<Competition>,
     pub team_competitions: Vec<crate::fixtures::TeamCompetition>,
     pub club_finances: Vec<FinanceMonth>,
+    pub sponsorships: Vec<Sponsorship>,
     pub stadiums: Vec<Stadium>,
     pub report: ParseReport,
 }
@@ -644,6 +645,23 @@ pub fn parse_save_with_progress(
         .filter(|value| value.is_some())
         .count();
     let club_finance_months = finance_data.months.len();
+    let sponsorships = finance_data.sponsorships.len();
+    let clubs_with_sponsorships = {
+        let mut uids: Vec<u32> = finance_data
+            .sponsorships
+            .iter()
+            .map(|row| row.club_uid)
+            .collect();
+        uids.sort_unstable();
+        uids.dedup();
+        uids.len()
+    };
+    if finance_data.rejected_sponsor_lists > 0 {
+        warnings.push(format!(
+            "{} sponsor lists failed structural checks and were skipped",
+            finance_data.rejected_sponsor_lists
+        ));
+    }
     let stadium_count = stadiums.len();
     let staff_with_attributes = staff.iter().filter(|row| row.attributes.is_some()).count();
     let staff_with_roles = staff.iter().filter(|row| row.roles.is_some()).count();
@@ -662,6 +680,11 @@ pub fn parse_save_with_progress(
         competitions_with_name: competitions.with_name,
         club_finance_months,
         clubs_with_finance,
+        sponsorships,
+        clubs_with_sponsorships,
+        sponsor_lists: finance_data.sponsor_lists,
+        empty_sponsor_lists: finance_data.empty_sponsor_lists,
+        rejected_sponsor_lists: finance_data.rejected_sponsor_lists,
         stadiums: stadium_count,
         clubs_with_corporate_facilities,
         markerless_players: record_index.markerless,
@@ -683,6 +706,7 @@ pub fn parse_save_with_progress(
         competitions: competitions.competitions,
         team_competitions,
         club_finances: finance_data.months,
+        sponsorships: finance_data.sponsorships,
         stadiums,
         report,
     })

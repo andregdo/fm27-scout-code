@@ -74,8 +74,12 @@ cargo build --release -p fm27-cli
 # Competition index and editor database ids
 ./target/release/fm27scout competitions "/path/to/save.fm" --output competitions.json
 
-# Clubs with finance, facilities and stadiums
+# Clubs with finance, sponsorships, facilities and stadiums
 ./target/release/fm27scout clubs "/path/to/save.fm" --details --output clubs.json
+
+# Club sponsorship contracts (all, or only contracts active on the save date)
+./target/release/fm27scout sponsorships "/path/to/save.fm" --output sponsorships.json
+./target/release/fm27scout sponsorships "/path/to/save.fm" --active --club 1155
 
 # Experimental: edit one player into a new save file (the source is never modified)
 ./target/release/fm27scout edit "/path/to/save.fm" --uid 228 \
@@ -130,6 +134,11 @@ python3 -m venv .venv
 .venv/bin/python scripts/oracle_clubs.py "/path/to/save.fm" --output /tmp/oracle_clubs.json
 ./target/release/fm27scout clubs "/path/to/save.fm" --details --output /tmp/rust_clubs.json
 .venv/bin/python scripts/compare_clubs.py /tmp/oracle_clubs.json /tmp/rust_clubs.json
+
+# Club sponsorship comparison (shared rows; current fmsave recommended)
+.venv/bin/python scripts/oracle_sponsorships.py "/path/to/save.fm" --output /tmp/oracle_sponsorships.json
+./target/release/fm27scout sponsorships "/path/to/save.fm" --output /tmp/rust_sponsorships.json
+.venv/bin/python scripts/compare_sponsorships.py /tmp/oracle_sponsorships.json /tmp/rust_sponsorships.json
 ```
 
 Reference results are in [validation.md](validation.md). The name-table format is

@@ -20,12 +20,20 @@
 - Club finances: monthly snapshots (balance, transfer budget, wage budget,
   payroll, income/expenditure and net) plus corporate facilities, read from each
   club record. Only the league nations the save tracks keep these rows.
+- Club sponsorships: primary sponsor contracts (raw type code, start/end dates,
+  total, stored annual value, signing reputation and relegation/promotion
+  percentage) read from the list inside each club record, including clubs without
+  a finance series. The term is derived from the dates. Historical contracts are
+  retained and classified against the save date; a stored annual value of zero is
+  shown as unknown, with an estimate from the total and term. Only the codes
+  confirmed on an FM27 sponsorship screen carry a label; the save stores no
+  sponsor names.
 - Stadiums: the save's ground table with capacities, pitch dimensions, dates and
   owner club. The save stores no direct club -> ground pointer, so home-ground
   use is not derived yet.
-- Club search: full club table with nation, reputation, finance, facilities and
-  stadium filters, plus a club profile with squad, finance history and owned
-  stadiums.
+- Club search: full club table with nation, reputation, finance, sponsorship,
+  facilities and stadium filters, plus a club profile with squad, finance
+  history, sponsorship contracts and owned stadiums.
 - Competitions: 1,724 competitions and 3,459 stage rows from the save's stage
   table; 1,586 carry an editor database id, which links to the optional user name
   CSV.
@@ -36,6 +44,9 @@
 - Contracts: 44,341 records with wages, start/end dates, loans and clauses.
 - SQLite cache and server-side pagination; the CLI and desktop app share
   `fm27-core`.
+- Cache maintenance: Settings reports the cache database size and can remove
+  caches from older parser versions, delete orphaned rows and reclaim disk
+  space. Current caches and career growth history are preserved.
 - Parsing takes about 1.3 seconds in a release build on an M-series Mac,
   including the competition index.
 
@@ -54,7 +65,9 @@
   rules, profile attributes, role scores, contract terms and sortable role columns.
   Staff are read-only.
 - Separate club workspace with searchable club table, overview, squad, finance
-  history and owned-stadium/facility-rating panels. The squad lists CA and PA
+  history, sponsorship-contract and owned-stadium/facility-rating panels. The
+  sponsorship panel separates active, future and expired contracts against the
+  save date and shows current annual and total values. The squad lists CA and PA
   with sortable headers, and facility ratings use the game's ten named tiers.
 - 2–4 player comparison.
 - CSV/JSON export.
@@ -72,11 +85,17 @@
   the current season (for example U20 or U18); a named senior competition reads
   as Reserves, and an unnamed competition or a side with no competitive fixtures
   falls back to its squad age profile (Youth or Reserves, marked inferred) or
-  the existing Squad N label.
+  the existing Squad N label. The Sponsorship tab aggregates active contract
+  income by club and sponsor type, with a sponsorship-to-wage ratio and links to
+  the club profile; the club table and filters expose the same active annual
+  value.
 - Quick filters: wonderkids, expiring contracts, high potential, injured /
   injury history / suspended / on loan / free agent / available.
 - Player origin: system-generated newgens are marked in the table and profile and
   can be included, excluded or isolated with the player-origin filter.
+- Player reputation: the table shows the current reputation in a sortable column,
+  the sidebar filters by a current-reputation range, and the profile shows home,
+  current and world reputation as labelled bars on the save's 1–10000 scale.
 - Other nationalities: the profile lists every other eligible nation the save
   stores, resolved through the bundled nation-name table.
 - Role scores: 29 FM-style roles weighted by key attributes and combined with

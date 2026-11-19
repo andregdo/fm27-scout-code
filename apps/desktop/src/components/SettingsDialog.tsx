@@ -16,7 +16,7 @@ import {
 } from "lucide-react";
 import { check, type DownloadEvent, type Update } from "@tauri-apps/plugin-updater";
 import { relaunch } from "@tauri-apps/plugin-process";
-import { deleteSave, updaterInfo, type UpdaterInfo } from "@/lib/api";
+import { cleanupCache, deleteSave, updaterInfo, type UpdaterInfo } from "@/lib/api";
 import {
   COMMON_CURRENCY_CODES,
   CURRENCY_RATES_DATE,
@@ -24,11 +24,11 @@ import {
   currencyName,
   type CurrencyCode,
 } from "@/lib/currency";
-import { useAppInfo, useSaves } from "@/lib/query";
+import { useAppInfo, useCacheStats, useSaves } from "@/lib/query";
 import { formatNumber } from "@/lib/i18n";
 import { LANGUAGE_OPTIONS, type Language } from "@/lib/i18n";
 import { useI18n } from "@/lib/useI18n";
-import { relativeTime } from "@/lib/utils";
+import { formatBytes, relativeTime } from "@/lib/utils";
 import { useAppStore, type DisplayMode, type Theme } from "@/store/app";
 import { Badge, Button, Modal, Select } from "./ui";
 
@@ -62,9 +62,11 @@ export function SettingsDialog() {
   const clearSession = useAppStore((state) => state.clearSession);
   const [updater, setUpdater] = useState<UpdaterInfo | null>(null);
   const [updateStatus, setUpdateStatus] = useState<UpdateStatus>({ kind: "idle" });
+  const [cleaningCache, setCleaningCache] = useState(false);
   const pendingUpdate = useRef<Update | null>(null);
   const { data: info } = useAppInfo(open);
   const { data: saves = [] } = useSaves();
+  const { data: cache } = useCacheStats(open);
   const queryClient = useQueryClient();
   const allCurrencies = useMemo(() => allCurrencyCodes(locale), [locale]);
   const commonCurrencyOptions = useMemo(
@@ -143,6 +145,46 @@ export function SettingsDialog() {
       setUpdateStatus({ kind: "ready", version: update.version });
     } catch (error) {
       setUpdateStatus({ kind: "error", message: updateErrorMessage(error) });
+    }
+  }
+
+  async function cleanLocalCache() {
+    setCleaningCache(true);
+    try {
+      const report = await cleanupCache();
+      await queryClient.invalidateQueries({ queryKey: ["cache-stats"] });
+      await queryClient.invalidateQueries({ queryKey: ["saves"] });
+      const removed = report.removed_saves + report.removed_orphan_rows > 0;
+      let description: string;
+      if (removed) {
+        description = t("settings.cleanDoneDescription", {
+          saves: formatNumber(report.removed_saves, locale),
+          rows: formatNumber(report.removed_orphan_rows, locale),
+          size: formatBytes(report.freed_bytes),
+        });
+      } else if (report.freed_bytes > 0) {
+        description = t("settings.cleanReclaimed", {
+          size: formatBytes(report.freed_bytes),
+        });
+      } else {
+        description = t("settings.cleanAlreadyDescription");
+      }
+      if (!report.vacuumed) {
+        description += ` ${t("settings.cleanVacuumSkipped")}`;
+      }
+      pushToast({
+        title: removed ? t("settings.cleanDone") : t("settings.cleanAlready"),
+        description,
+        tone: "success",
+      });
+    } catch (error) {
+      pushToast({
+        title: t("settings.cleanFailed"),
+        description: updateErrorMessage(error),
+        tone: "error",
+      });
+    } finally {
+      setCleaningCache(false);
     }
   }
 
@@ -287,6 +329,48 @@ export function SettingsDialog() {
               {info?.data_dir ?? ""}
             </span>
           </div>
+          <div className="rounded-xl border border-[var(--line)] bg-[var(--surface-2)] p-3">
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex min-w-0 items-start gap-2">
+                <Database size={14} className="mt-0.5 shrink-0 text-[var(--accent)]" />
+                <div>
+                  <div className="text-[11px] font-semibold text-[var(--ink)]">
+                    {t("settings.cacheSize", {
+                      size: formatBytes(cache?.database_bytes ?? 0),
+                    })}
+                  </div>
+                  <div className="mt-0.5 text-[9px] text-[var(--muted)]">
+                    {t("settings.cacheStats", {
+                      saves: formatNumber(cache?.save_count ?? 0, locale),
+                      stale: formatNumber(cache?.stale_save_count ?? 0, locale),
+                      orphans: formatNumber(cache?.orphan_rows ?? 0, locale),
+                    })}
+                  </div>
+                  {(cache?.reclaimable_bytes ?? 0) > 0 && (
+                    <div className="mt-0.5 text-[9px] text-[var(--muted)]">
+                      {t("settings.cacheReclaimable", {
+                        size: formatBytes(cache?.reclaimable_bytes ?? 0),
+                      })}
+                    </div>
+                  )}
+                </div>
+              </div>
+              <Button
+                variant="secondary"
+                size="sm"
+                className="shrink-0"
+                disabled={cleaningCache}
+                onClick={() => void cleanLocalCache()}
+              >
+                {cleaningCache ? (
+                  <RefreshCw size={12} className="animate-spin" />
+                ) : (
+                  <Trash2 size={12} />
+                )}
+                {cleaningCache ? t("settings.cleaning") : t("settings.cleanCache")}
+              </Button>
+            </div>
+          </div>
           <div className="divide-y divide-[var(--line)] overflow-hidden rounded-xl border border-[var(--line)]">
             {saves.length === 0 && (
               <div className="px-3 py-6 text-center text-[11px] text-[var(--muted)]">
@@ -313,6 +397,7 @@ export function SettingsDialog() {
                   onClick={async () => {
                     await deleteSave(save.id);
                     await queryClient.invalidateQueries({ queryKey: ["saves"] });
+                    await queryClient.invalidateQueries({ queryKey: ["cache-stats"] });
                     if (save.id === currentSaveId) clearSession();
                     pushToast({
                       title: t("settings.deleted"),
@@ -329,6 +414,9 @@ export function SettingsDialog() {
           </div>
           <p className="text-[9px] leading-relaxed text-[var(--muted)]">
             {t("settings.cacheNote")}
+          </p>
+          <p className="text-[9px] leading-relaxed text-[var(--muted)]">
+            {t("settings.cacheCleanupNote")}
           </p>
         </section>
 

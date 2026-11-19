@@ -8,6 +8,7 @@ import {
   Coins,
   Compass,
   Download,
+  Handshake,
   Loader2,
   RefreshCw,
   TrendingUp,
@@ -18,18 +19,25 @@ import {
   useManagedClub,
   useSimilarStatsPlayers,
   useSquadAnalysis,
+  useSponsorshipOverview,
   useStatsMoneyball,
   useValueFinder,
 } from "@/lib/query";
 import type {
   DistributionBand,
   SquadAnalysis,
+  SponsorshipOverview,
   StatsMoneyballRequest,
   StatsMoneyballRow,
   ValueFinderRequest,
   ValueFinderRow,
 } from "@/lib/types";
-import { bandLabel, roleName } from "@/lib/labels";
+import {
+  bandLabel,
+  roleName,
+  sponsorshipKindLabel,
+  sponsorshipLabelsConfirmed,
+} from "@/lib/labels";
 import { formatNumber, type TranslationKey } from "@/lib/i18n";
 import { useI18n } from "@/lib/useI18n";
 import { caLabelClass, cn, initials, paTone } from "@/lib/utils";
@@ -37,7 +45,7 @@ import { useAppStore } from "@/store/app";
 import { ScoutPanel } from "./ScoutPanel";
 import { Badge, Button, Input, Modal, Select } from "./ui";
 
-type AnalysisTab = "overview" | "scout" | "value" | "stats";
+type AnalysisTab = "overview" | "scout" | "value" | "stats" | "sponsorship";
 
 export function AnalysisDialog() {
   const { t, locale } = useI18n();
@@ -47,6 +55,7 @@ export function AnalysisDialog() {
   const dataMode = useAppStore((state) => state.dataMode);
   const summary = useAppStore((state) => state.summary);
   const setSelectedUid = useAppStore((state) => state.setSelectedUid);
+  const setSelectedClubUid = useAppStore((state) => state.setSelectedClubUid);
   const setInspectorOpen = useAppStore((state) => state.setInspectorOpen);
   const setViewMode = useAppStore((state) => state.setViewMode);
   const [tab, setTab] = useState<AnalysisTab>(
@@ -63,12 +72,20 @@ export function AnalysisDialog() {
     setOpen(false);
   };
 
+  const openClub = (uid: number) => {
+    setSelectedClubUid(uid);
+    setViewMode("clubs");
+    setInspectorOpen(true);
+    setOpen(false);
+  };
+
   useEffect(() => {
     const allowed: AnalysisTab[] = [
       "overview",
       ...(dataMode === "full" ? (["scout"] as AnalysisTab[]) : []),
       ...(dataMode !== "moneyball" ? (["value"] as AnalysisTab[]) : []),
       "stats",
+      "sponsorship",
     ];
     if (!allowed.includes(tab)) setTab("stats");
   }, [dataMode, tab]);
@@ -117,6 +134,11 @@ export function AnalysisDialog() {
             ? [["value", t("analysis.tab.value"), <Coins size={12} key="value" />]]
             : []),
           ["stats", t("analysis.tab.stats"), <TrendingUp size={12} key="stats" />],
+          [
+            "sponsorship",
+            t("analysis.tab.sponsorship"),
+            <Handshake size={12} key="sponsorship" />,
+          ],
         ].map(([value, label, icon]) => (
           <button
             key={value as string}
@@ -174,8 +196,217 @@ export function AnalysisDialog() {
         {tab === "stats" && (
           <StatsMoneyballPanel saveId={saveId} onPlayer={openPlayer} />
         )}
+
+        {tab === "sponsorship" && (
+          <SponsorshipPanel saveId={saveId} onClub={openClub} />
+        )}
       </div>
     </Modal>
+  );
+}
+
+function SponsorshipPanel({
+  saveId,
+  onClub,
+}: {
+  saveId: number | null;
+  onClub: (uid: number) => void;
+}) {
+  const { t, locale, formatMoney } = useI18n();
+  const build = useAppStore((state) => state.summary?.build);
+  const overview = useSponsorshipOverview(saveId);
+
+  if (overview.isLoading) return <LoadingBlock />;
+  if (overview.isError) return <EmptyHint text={t("analysis.loadError")} />;
+  const data: SponsorshipOverview | undefined = overview.data;
+  if (!data || data.clubs.length === 0) {
+    return <EmptyHint text={t("analysis.sponsorship.empty")} />;
+  }
+
+  const cards = [
+    {
+      label: t("analysis.sponsorship.clubs"),
+      value: formatNumber(data.clubs_with_sponsorships, locale),
+    },
+    {
+      label: t("analysis.sponsorship.contracts"),
+      value: formatNumber(data.active_contracts, locale),
+    },
+    {
+      label: t("analysis.sponsorship.annual"),
+      value: formatMoney(data.active_annual),
+    },
+  ];
+
+  return (
+    <div className="space-y-4" data-testid="sponsorship-analysis">
+      <p className="text-[10px] text-[var(--muted)]">
+        {t("analysis.sponsorship.description")}
+      </p>
+
+      <div className="grid grid-cols-3 gap-2">
+        {cards.map((card) => (
+          <div
+            key={card.label}
+            className="rounded-lg border border-[var(--line)] bg-[var(--surface-2)] px-3 py-2"
+          >
+            <div className="text-[9px] font-semibold uppercase tracking-wider text-[var(--muted)]">
+              {card.label}
+            </div>
+            <div className="mt-1 font-mono text-sm font-semibold text-[var(--ink)]">
+              {card.value}
+            </div>
+          </div>
+        ))}
+      </div>
+      {data.active_annual_unknown > 0 && (
+        <p className="text-[10px] text-[var(--muted)]">
+          {t("analysis.sponsorship.unknownAnnual", {
+            count: data.active_annual_unknown,
+          })}
+        </p>
+      )}
+
+      <div className="grid gap-4 xl:grid-cols-[1.5fr_1fr]">
+        <section className="min-w-0 space-y-1.5">
+          <h3 className="text-[11px] font-semibold text-[var(--ink)]">
+            {t("analysis.sponsorship.topClubs")}
+          </h3>
+          <div className="thin-scroll max-h-[380px] overflow-auto rounded-lg border border-[var(--line)]">
+            <table className="w-full min-w-[520px] text-left">
+              <thead className="sticky top-0 z-10 bg-[var(--surface-2)]">
+                <tr className="text-[9px] uppercase tracking-wider text-[var(--muted)]">
+                  <th className="px-3 py-1.5">{t("analysis.sponsorship.club")}</th>
+                  <th className="px-2 py-1.5 text-right">
+                    {t("analysis.sponsorship.annual")}
+                  </th>
+                  <th className="px-2 py-1.5 text-right">
+                    {t("analysis.sponsorship.count")}
+                  </th>
+                  <th className="px-2 py-1.5 text-right">
+                    {t("analysis.sponsorship.ratio")}
+                  </th>
+                  <th className="px-3 py-1.5 text-right">
+                    {t("analysis.sponsorship.nextEnd")}
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.clubs.map((club) => (
+                  <tr
+                    key={club.club_uid}
+                    tabIndex={0}
+                    className="focus-ring cursor-pointer border-t border-[var(--line)]/60 text-[11px] hover:bg-[var(--surface-2)]"
+                    onClick={() => onClub(club.club_uid)}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter" || event.key === " ") {
+                        event.preventDefault();
+                        onClub(club.club_uid);
+                      }
+                    }}
+                  >
+                    <td className="max-w-[200px] truncate px-3 py-1.5 font-semibold text-[var(--ink)]">
+                      {club.club_name}
+                    </td>
+                    <td className="px-2 py-1.5 text-right font-mono text-[var(--ink)]">
+                      {formatMoney(club.active_annual)}
+                      {club.unknown_annual_count > 0 && (
+                        <span
+                          className="ml-1 text-[9px] text-[var(--muted)]"
+                          title={t("clubs.sponsorship.annualUnknown")}
+                        >
+                          {t("clubs.sponsorship.unknownAnnualShort", {
+                            count: club.unknown_annual_count,
+                          })}
+                        </span>
+                      )}
+                    </td>
+                    <td className="px-2 py-1.5 text-right font-mono text-[var(--muted)]">
+                      {club.active_count}
+                    </td>
+                    <td
+                      className="px-2 py-1.5 text-right font-mono text-[var(--muted)]"
+                      title={
+                        club.sponsorship_to_wage == null
+                          ? club.unknown_annual_count > 0
+                            ? t("clubs.sponsorship.annualUnknown")
+                            : t("analysis.sponsorship.noWages")
+                          : undefined
+                      }
+                    >
+                      {club.sponsorship_to_wage != null
+                        ? `${(club.sponsorship_to_wage * 100).toFixed(0)}%`
+                        : "—"}
+                    </td>
+                    <td className="px-3 py-1.5 text-right font-mono text-[var(--muted)]">
+                      {club.next_end ?? "—"}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <section className="min-w-0 space-y-1.5">
+          <h3 className="text-[11px] font-semibold text-[var(--ink)]">
+            {t("analysis.sponsorship.kinds")}
+          </h3>
+          <div className="thin-scroll max-h-[380px] overflow-auto rounded-lg border border-[var(--line)]">
+            <table className="w-full text-left">
+              <thead className="sticky top-0 z-10 bg-[var(--surface-2)]">
+                <tr className="text-[9px] uppercase tracking-wider text-[var(--muted)]">
+                  <th className="px-3 py-1.5">{t("analysis.sponsorship.kind")}</th>
+                  <th className="px-2 py-1.5 text-right">
+                    {t("analysis.sponsorship.annual")}
+                  </th>
+                  <th className="px-3 py-1.5 text-right">
+                    {t("analysis.sponsorship.count")}
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.kinds.map((kind) => (
+                  <tr
+                    key={kind.kind}
+                    className="border-t border-[var(--line)]/60 text-[11px]"
+                  >
+                    <td className="px-3 py-1.5 text-[var(--ink)]">
+                      {sponsorshipKindLabel(kind.kind, build, locale) ??
+                        t("clubs.sponsorship.typeCode", { kind: kind.kind })}
+                    </td>
+                    <td className="px-2 py-1.5 text-right font-mono text-[var(--ink)]">
+                      {formatMoney(kind.active_annual)}
+                      {kind.unknown_annual_count > 0 && (
+                        <span
+                          className="ml-1 text-[9px] text-[var(--muted)]"
+                          title={t("clubs.sponsorship.annualUnknown")}
+                        >
+                          {t("clubs.sponsorship.unknownAnnualShort", {
+                            count: kind.unknown_annual_count,
+                          })}
+                        </span>
+                      )}
+                    </td>
+                    <td className="px-3 py-1.5 text-right font-mono text-[var(--muted)]">
+                      {kind.active_count}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <p className="text-[10px] text-[var(--muted)]">
+            {t("clubs.sponsorship.noNames")}
+          </p>
+          {!sponsorshipLabelsConfirmed(build) && (
+            <p className="text-[10px] text-[var(--muted)]">
+              {t("clubs.sponsorship.labelsUnverified")}
+            </p>
+          )}
+        </section>
+      </div>
+    </div>
   );
 }
 

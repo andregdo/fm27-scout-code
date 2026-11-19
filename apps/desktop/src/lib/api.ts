@@ -3,6 +3,8 @@ import { writeText as writeClipboardText } from "@tauri-apps/plugin-clipboard-ma
 import { open, save } from "@tauri-apps/plugin-dialog";
 import type {
   BatchSaveResult,
+  CacheCleanupReport,
+  CacheStats,
   CaEstimate,
   CaEstimateRequest,
   ClubDetail,
@@ -34,6 +36,7 @@ import type {
   StaffPage,
   StaffQuery,
   StatsMoneyballPage,
+  SponsorshipOverview,
   SimilarStatsPlayer,
   SquadNeeds,
   SquadNeedsRequest,
@@ -47,11 +50,13 @@ import type {
 import { estimateCaExact } from "./ca";
 import { timedInvoke } from "./perf";
 import {
+  MOCK_CACHE_STATS,
   MOCK_PLAYERS,
   MOCK_SAVE,
   MOCK_SAVE_ID,
   MOCK_SUMMARY,
   MOCK_TRAIT_OPTIONS,
+  mockCleanupCache,
   mockClubDetail,
   mockClubFilterOptions,
   mockFilterOptions,
@@ -67,6 +72,7 @@ import {
   mockSquadAnalysis,
   mockSimilarStatsPlayers,
   mockSquadNeeds,
+  mockSponsorshipOverview,
   mockStatsMoneyball,
   mockTransferPlan,
   mockValueFinder,
@@ -161,6 +167,13 @@ export async function getClub(saveId: number, uid: number): Promise<ClubDetail |
 export async function getClubFilterOptions(saveId: number): Promise<ClubFilterOptions> {
   if (!isTauri) return mockClubFilterOptions();
   return timedInvoke<ClubFilterOptions>("club_filter_options", { saveId });
+}
+
+export async function getSponsorshipOverview(
+  saveId: number,
+): Promise<SponsorshipOverview> {
+  if (!isTauri) return mockSponsorshipOverview();
+  return timedInvoke<SponsorshipOverview>("sponsorship_overview", { saveId });
 }
 
 export async function editClub(
@@ -353,6 +366,16 @@ export async function getGrowthHistory(
 export async function deleteSave(saveId: number): Promise<void> {
   if (!isTauri) return;
   return timedInvoke<void>("delete_save", { saveId });
+}
+
+export async function cacheStats(): Promise<CacheStats> {
+  if (!isTauri) return MOCK_CACHE_STATS;
+  return timedInvoke<CacheStats>("cache_stats");
+}
+
+export async function cleanupCache(): Promise<CacheCleanupReport> {
+  if (!isTauri) return mockCleanupCache();
+  return timedInvoke<CacheCleanupReport>("cleanup_cache");
 }
 
 export async function exportPlayers(

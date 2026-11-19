@@ -325,6 +325,10 @@ export interface PlayerRow {
   ca: number;
   pa: number | null;
   pa_range_code: number | null;
+  /** Player reputation on the save's 1-10000 scale: home nation, current and worldwide. */
+  reputation_home: number;
+  reputation_current: number;
+  reputation_world: number;
   positions_text: string | null;
   positions: Positions;
   attributes: Attributes;
@@ -370,6 +374,9 @@ export interface PlayerQuery {
   ca_max?: number | null;
   pa_min?: number | null;
   pa_max?: number | null;
+  /** Current player reputation, on the save's 1-10000 scale. */
+  reputation_min?: number | null;
+  reputation_max?: number | null;
   pa_ca_gap_min?: number | null;
   /** `true` keeps only system-generated players, `false` keeps only database players. */
   generated?: boolean | null;
@@ -789,6 +796,50 @@ export interface FinanceMonth {
   total_expenditure: number;
 }
 
+export interface Sponsorship {
+  club_uid: number;
+  club_name: string;
+  kind: number;
+  start: string | null;
+  end: string | null;
+  years: number | null;
+  total_value: number;
+  /** Null when the save stores no annual value; do not read it as zero. */
+  annual_value: number | null;
+  percent: number;
+  percent_rises: boolean;
+  reputation_at_signing: number | null;
+}
+
+export interface SponsorshipClubRow {
+  club_uid: number;
+  club_name: string;
+  active_annual: number;
+  active_count: number;
+  unknown_annual_count: number;
+  next_end: string | null;
+  wage_payroll_weekly: number | null;
+  annual_wage_bill: number | null;
+  sponsorship_to_wage: number | null;
+}
+
+export interface SponsorshipKindRow {
+  kind: number;
+  active_annual: number;
+  active_count: number;
+  unknown_annual_count: number;
+}
+
+export interface SponsorshipOverview {
+  game_date: string | null;
+  clubs_with_sponsorships: number;
+  active_contracts: number;
+  active_annual: number;
+  active_annual_unknown: number;
+  clubs: SponsorshipClubRow[];
+  kinds: SponsorshipKindRow[];
+}
+
 export interface Stadium {
   uid: number;
   name: string | null;
@@ -816,6 +867,7 @@ export interface ClubLink {
 export interface ClubDetail {
   club: Club;
   finance_months: FinanceMonth[];
+  sponsorships: Sponsorship[];
   stadiums: Stadium[];
   child_clubs: ClubLink[];
 }
@@ -852,6 +904,9 @@ export interface ClubRow {
   total_wage: number | null;
   stadium_count: number;
   stadium_capacity: number | null;
+  sponsorship_annual: number | null;
+  sponsorship_count: number;
+  sponsorship_next_end: string | null;
 }
 
 export interface ClubPage {
@@ -871,6 +926,9 @@ export interface ClubQuery {
   last_position_min?: number | null;
   last_position_max?: number | null;
   has_finances?: boolean | null;
+  has_sponsorships?: boolean | null;
+  sponsorship_annual_min?: number | null;
+  sponsorship_annual_max?: number | null;
   balance_min?: number | null;
   balance_max?: number | null;
   transfer_budget_min?: number | null;
@@ -913,7 +971,10 @@ export interface ClubFilterOptions {
   max_transfer_budget: number | null;
   min_wage_budget: number | null;
   max_wage_budget: number | null;
+  min_sponsorship_annual: number | null;
+  max_sponsorship_annual: number | null;
   clubs_with_finances: number;
+  clubs_with_sponsorships: number;
   clubs_with_stadiums: number;
 }
 
@@ -962,6 +1023,26 @@ export interface SaveRecord {
   contracts: number;
 }
 
+export interface CacheStats {
+  database_bytes: number;
+  reclaimable_bytes: number;
+  save_count: number;
+  stale_save_count: number;
+  stale_player_count: number;
+  orphan_rows: number;
+  snapshot_rows: number;
+}
+
+export interface CacheCleanupReport {
+  removed_saves: number;
+  removed_players: number;
+  removed_orphan_rows: number;
+  before_bytes: number;
+  after_bytes: number;
+  freed_bytes: number;
+  vacuumed: boolean;
+}
+
 export interface ManagedClub {
   club_uid: number;
   club_name: string;
@@ -1005,6 +1086,11 @@ export interface ParseReport {
   competitions_with_name: number;
   club_finance_months: number;
   clubs_with_finance: number;
+  sponsorships: number;
+  clubs_with_sponsorships: number;
+  sponsor_lists: number;
+  empty_sponsor_lists: number;
+  rejected_sponsor_lists: number;
   stadiums: number;
   clubs_with_corporate_facilities: number;
   markerless_players: number;
@@ -1033,6 +1119,8 @@ export interface FilterOptions {
   max_ca: number | null;
   min_pa: number | null;
   max_pa: number | null;
+  min_reputation: number | null;
+  max_reputation: number | null;
   min_value: number | null;
   max_value: number | null;
   min_wage: number | null;

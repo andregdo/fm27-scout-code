@@ -120,6 +120,74 @@ its own record. The count is a u32 at `row - 4`; the full chain count range is
 The corporate-facilities byte sits 50 bytes past the end of the chain, range
 1–20. Only clubs in the tracked league nations keep a chain.
 
+### Club sponsor contracts
+
+A club's primary sponsor list is stored inside its own record. It usually follows
+the monthly finance chain, but clubs without a full finance series also carry
+one, so the parser scans the whole club record for the list. The list is
+structurally owned: a missing or invalid prefix yields no data, later
+sponsor-shaped bytes are never a fallback, and two valid lists in one record are
+treated as ambiguous and rejected.
+
+Prefix, with offsets from the start of the list:
+
+```text
++0    marker                 01 00 6c 07
++25   first prefix date      game date or the null-date marker
++29   second prefix date     game date or the null-date marker
++71   prefix entry count     u8 (0..=255)
++72   prefix entries         19 bytes each, reserved bytes zero at +8..+14
+```
+
+The counted entries are followed by a fixed suffix. The suffix is 68 bytes
+through `27.0.1+2503222` and 73 bytes on `27.1.0+2505117`. The extra five bytes
+are the same status byte and game date inserted at suffix offset 22 that the
+full-finance closing block gained; the later fixed bytes, dates and the primary
+sponsor count shift by five. The primary sponsor count is the last suffix byte.
+That many 25-byte rows follow:
+
+```text
++0    tag                  02
++1    kind                 u8 (raw type code)
++2    start                game date
++6    end                  game date
++10   flag                 0 or 1
++11   total value          u32
++15   reputation at signing u16
++17   unknown              u16
++19   percentage           u16, 0..100
++21   annual value         u32, 0 means not stored
+```
+
+The parser validates the prefix marker, both prefix dates (or null markers),
+the reserved bytes of every 19-byte entry, the suffix fixed bytes and dates,
+the primary count, and every row: tag, flag, `total <= 2,000,000,000`,
+`annual <= total`, `percentage <= 100`, both dates valid, and
+`end - start >= -1 day`. FM27 can store a row that ends one day before it
+starts. A positive count with any failing row rejects the whole list; an
+explicit zero count is a decoded empty list. Both suffix sizes are tried, and
+two valid shapes are treated as ambiguous and rejected.
+
+The annual field is zero for many deals, including some active ones. The parser
+reports that as unknown (`null`) rather than zero income; a term is derived from
+the dates the way the game screen counts it. The percentage falls on relegation,
+or rises on promotion for kind 22 (kit manufacturer), and the reputation is the
+club's value when the deal was signed.
+
+Coverage now follows the club record rather than the finance series: 167 clubs
+and 1,094 rows on the `27.0.0` reference save, 318 clubs and 1,627 rows on
+`27.0.1`, and 318 clubs and 1,625 rows on `27.1.0`. One list on each of the
+27.0.1/27.1.0 saves is rejected because a row stores sentinel-like values near
+`u32::MAX`.
+
+The rows store contract terms and a raw type code, not a sponsor name. The
+game's sponsorship screen confirmed codes 1 Main Kit, 3 and 23 Stadium, 4
+General, 5 Individual TV Deal, 7 Club Membership, 8 Away Kit, 9 Additional Kit
+Sponsor, 11 Back of Shirt, 12 Shorts, 13 Training Kit, 14 Youth Team, 15
+Training Ground, 16 Continental Competition, 19 Shirt Sleeve and 22 Kit
+Manufacturer on builds 27.0.0 and 27.0.1. Codes 2, 6, 17 and 18 remain unnamed,
+and 27.1.0 keeps raw codes until its screen is checked.
+
 ### Club facility rows
 
 Training, youth, junior-coaching and youth-recruitment ratings live in a club-info

@@ -45,6 +45,8 @@ export interface Filters {
   caMax: number | null;
   paMin: number | null;
   paMax: number | null;
+  reputationMin: number | null;
+  reputationMax: number | null;
   paCaGapMin: number | null;
   generated: boolean | null;
   positions: string[];
@@ -83,6 +85,9 @@ export interface ClubFilters {
   youthRecruitmentMax: number | null;
   playerCountMin: number | null;
   hasStadium: boolean | null;
+  hasSponsorships: boolean | null;
+  sponsorshipAnnualMin: number | null;
+  sponsorshipAnnualMax: number | null;
 }
 
 export const EMPTY_CLUB_FILTERS: ClubFilters = {
@@ -110,6 +115,9 @@ export const EMPTY_CLUB_FILTERS: ClubFilters = {
   youthRecruitmentMax: null,
   playerCountMin: null,
   hasStadium: null,
+  hasSponsorships: null,
+  sponsorshipAnnualMin: null,
+  sponsorshipAnnualMax: null,
 };
 
 export interface StaffFilters {
@@ -165,6 +173,8 @@ export const EMPTY_FILTERS: Filters = {
   caMax: null,
   paMin: null,
   paMax: null,
+  reputationMin: null,
+  reputationMax: null,
   paCaGapMin: null,
   generated: null,
   positions: [],

@@ -203,6 +203,9 @@ fn csv_header() -> Vec<String> {
         "best_role_score".to_owned(),
         "ca".to_owned(),
         "pa".to_owned(),
+        "reputation_home".to_owned(),
+        "reputation_current".to_owned(),
+        "reputation_world".to_owned(),
         "value".to_owned(),
         "wage".to_owned(),
         "contract_end".to_owned(),
@@ -240,6 +243,9 @@ fn csv_record(row: &PlayerRow) -> Vec<String> {
             .unwrap_or_default(),
         row.ca.to_string(),
         row.pa.map(|value| value.to_string()).unwrap_or_default(),
+        row.reputation_home.to_string(),
+        row.reputation_current.to_string(),
+        row.reputation_world.to_string(),
         row.transfer_value
             .map(|value| value.to_string())
             .unwrap_or_default(),

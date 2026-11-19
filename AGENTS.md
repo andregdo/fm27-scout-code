@@ -9,7 +9,7 @@ FM27 Scout is a macOS scouting workbench for Football Manager 27 with an optiona
 ## Workspace layout
 
 - `crates/fm27-core/` — platform-independent save parser, SQLite cache, query/filter/sort layer, scoring models and byte-level editors. No Tauri dependency.
-- `crates/fm27-cli/` — the `fm27scout` CLI (`inspect`, `validate`, `players`, `clubs`, `competitions`, `index`, `export`, `edit`, `edit-club`, `transfer`).
+- `crates/fm27-cli/` — the `fm27scout` CLI (`inspect`, `validate`, `players`, `clubs`, `sponsorships`, `competitions`, `index`, `export`, `edit`, `edit-club`, `transfer`).
 - `apps/desktop/src-tauri/` — Tauri commands, app state, menu and file-open handling.
 - `apps/desktop/src/` — React UI (`components/`, `lib/`, `store/`).
 - `shared/schema.sql` — SQLite schema, compiled into `fm27-core` with `include_str!`.
@@ -95,6 +95,7 @@ cargo build --release -p fm27-cli
 ./target/release/fm27scout validate "/path/to/save.fm"
 ./target/release/fm27scout players "/path/to/save.fm" --limit 1000 --format json
 ./target/release/fm27scout clubs "/path/to/save.fm" --details --output clubs.json
+./target/release/fm27scout sponsorships "/path/to/save.fm" --active --output sponsorships.json
 ./target/release/fm27scout index "/path/to/save.fm" --db fm27scout.db
 ./target/release/fm27scout transfer "/path/to/save.fm" --uid 2000449256 --to-club 2391 --output transferred.fm
 ```
@@ -137,14 +138,14 @@ cargo build --release -p fm27-cli
 - `container.rs` reads the header, validates the trailer directory, decompresses frames with per-frame/total caps, and handles both listed sections and unlisted frame regions. Season statistics live in the unlisted region after `non_pl_hist_ls`.
 - `parse.rs` orchestrates decoding: metadata → `game_db` → name pools → player records → clubs/teams → finances/facilities → stadiums → competitions/leagues → injuries/suspensions → players and contracts → season stats.
 - All reverse-engineered offsets and key tables live in `layout.rs`. Do not scatter magic offsets through decoders.
-- `player_scan.rs`, `persons.rs` and `names.rs` locate player records and person blocks; `clubs.rs`, `contracts.rs`, `competitions.rs`, `finances.rs`, `facilities.rs`, `stadiums.rs`, `injuries.rs` and `suspensions.rs` decode their sections.
+- `player_scan.rs`, `persons.rs` and `names.rs` locate player records and person blocks; `clubs.rs`, `contracts.rs`, `competitions.rs`, `finances.rs`, `sponsorships.rs`, `facilities.rs`, `stadiums.rs`, `injuries.rs` and `suspensions.rs` decode their sections.
 - Supported builds are `27.0.0+2486695`, `27.0.0+2493426`, `27.0.1+2494687`, `27.0.1+2503222` and `27.1.0+2505117`, `game_db` schema 4000. Unknown builds are read in degraded mode where safe, and editing refuses them. The parser fails closed instead of guessing when framing or record shapes are invalid.
 
 `docs/fm27-layout.md` is the quick offset reference; `docs/parser-notes.md` records the observed FM27 facts and the intentional stopping points.
 
 ### SQLite cache and queries
 
-- `Store` wraps one WAL-mode SQLite connection. `shared/schema.sql` defines players, contracts, clubs, club finances, stadiums, competitions, season stats, materialized metrics, and growth snapshots.
+- `Store` wraps one WAL-mode SQLite connection. `shared/schema.sql` defines players, contracts, clubs, club finances, club sponsorships, stadiums, competitions, season stats, materialized metrics, and growth snapshots.
 - Save cache identity is the save fingerprint (`SHA-256` of header + trailer) plus `layout::PARSER_VERSION`; `find_cached` hits only when both match.
 - Parsing a save also appends `player_snapshots` rows keyed by `career_key` (save name) + game date, which powers growth history across saves of the same career.
 - Filtering, multi-column sorting and pagination are server-side in `store.rs`; the UI never sees the database path.
@@ -182,6 +183,7 @@ cargo build --release -p fm27-cli
 - **Bump `layout::PARSER_VERSION` whenever parsing behavior or the cached data shape changes.** This invalidates old caches. Do not bump it for ordinary app releases; the app version is independent.
 - **Keep schema changes additive and mirrored** in `shared/schema.sql` and `migrate()` in `store.rs`.
 - **Unknown values are not zero.** In particular, `transfer_value_state` is a JSON string in SQLite (`"ok"`, `"unset"`, …) and must be deserialized with `serde_json`, and missing fees/wages must stay `None`.
+- **Sponsorship rows carry no sponsor name and only a raw type code.** The list belongs to the club record, not the finance chain: scan every record span so clubs without a finance series are included. A stored annual value of 0 means "not stored", not zero income. Show a type label only where the game's own sponsorship screen confirmed that code on that build (`27.0.0` and `27.0.1` today); every other code stays numeric. Filter current income by the save date because expired contracts keep their stored annual value.
 - **Add new Tauri commands in all three places**: the `#[tauri::command]` function plus `generate_handler!`, `lib/api.ts`, and `lib/types.ts`; add a mock fallback if the UI should work in browser mode.
 - **All user-facing strings go through `i18n.ts`** in both languages. Code comments and identifiers stay English.
 - **Security boundary:** no shell plugin, no arbitrary filesystem access, no network requests except the optional signed updater check. Do not add features that upload save or player data.

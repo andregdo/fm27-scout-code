@@ -10,6 +10,7 @@ export function RangeInput({
   step = 1,
   placeholderMin,
   placeholderMax,
+  testId,
 }: {
   label: string;
   min: number | null;
@@ -19,6 +20,7 @@ export function RangeInput({
   step?: number;
   placeholderMin?: string;
   placeholderMax?: string;
+  testId?: string;
 }) {
   const { t } = useI18n();
   return (
@@ -29,6 +31,7 @@ export function RangeInput({
           type="number"
           inputMode="numeric"
           step={step}
+          data-testid={testId ? `${testId}-min` : undefined}
           value={min ?? ""}
           placeholder={placeholderMin ?? t("common.min")}
           onChange={(event) =>
@@ -41,6 +44,7 @@ export function RangeInput({
           type="number"
           inputMode="numeric"
           step={step}
+          data-testid={testId ? `${testId}-max` : undefined}
           value={max ?? ""}
           placeholder={placeholderMax ?? t("common.max")}
           onChange={(event) =>

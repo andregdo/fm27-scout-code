@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { Building2, Filter, RotateCcw, SlidersHorizontal } from "lucide-react";
+import { Building2, Filter, Handshake, RotateCcw, SlidersHorizontal } from "lucide-react";
 import { nationLabel } from "@/lib/labels";
 import { useClubFilterOptions } from "@/lib/query";
 import { useI18n } from "@/lib/useI18n";
@@ -39,7 +39,9 @@ export function ClubFilterSidebar() {
     (filters.youthFacilitiesMin != null || filters.youthFacilitiesMax != null ? 1 : 0) +
     (filters.juniorCoachingMin != null || filters.juniorCoachingMax != null ? 1 : 0) +
     (filters.youthRecruitmentMin != null || filters.youthRecruitmentMax != null ? 1 : 0) +
-    (filters.hasStadium != null ? 1 : 0);
+    (filters.hasStadium != null ? 1 : 0) +
+    (filters.hasSponsorships != null ? 1 : 0) +
+    (filters.sponsorshipAnnualMin != null || filters.sponsorshipAnnualMax != null ? 1 : 0);
 
   return (
     <aside className="flex h-full w-[252px] shrink-0 flex-col border-r border-[var(--line)] bg-[var(--surface)]/80">
@@ -151,6 +153,36 @@ export function ClubFilterSidebar() {
             value={filters.wageBudgetMin}
             onChange={(wageBudgetMin) => patch({ wageBudgetMin })}
             step={100}
+          />
+        </Section>
+
+        <Section title={t("clubs.filter.sponsorship")} icon={<Handshake size={12} />}>
+          <Select
+            data-testid="club-filter-sponsorship"
+            value={filters.hasSponsorships == null ? "" : String(filters.hasSponsorships)}
+            onChange={(event) =>
+              patch({
+                hasSponsorships:
+                  event.target.value === "" ? null : event.target.value === "true",
+              })
+            }
+            className="h-8"
+          >
+            <option value="">{t("clubs.filter.any")}</option>
+            <option value="true">{t("clubs.filter.withSponsorship")}</option>
+            <option value="false">{t("clubs.filter.withoutSponsorship")}</option>
+          </Select>
+          <RangeInput
+            label={t("clubs.filter.sponsorshipAnnual")}
+            min={filters.sponsorshipAnnualMin}
+            max={filters.sponsorshipAnnualMax}
+            onMin={(sponsorshipAnnualMin) => patch({ sponsorshipAnnualMin })}
+            onMax={(sponsorshipAnnualMax) => patch({ sponsorshipAnnualMax })}
+            placeholderMin="0"
+            placeholderMax={String(
+              options.data?.max_sponsorship_annual ?? 100_000_000,
+            )}
+            testId="club-filter-sponsorship-annual"
           />
         </Section>
 

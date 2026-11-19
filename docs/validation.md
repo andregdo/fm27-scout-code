@@ -153,6 +153,41 @@ stadiums: oracle=27042 rust=27042 missing=0 extra=0
 mismatches: 0
 ```
 
+## Club sponsorship validation
+
+The sponsorship pass is compared with the fmsave FM27 oracle. The comparison is
+now a shared-row check: every oracle row must be present in the Rust output, and
+Rust may not add or change a row for a club the oracle covers. Rows for clubs the
+oracle does not visit are reported separately as expanded coverage, because the
+save-side reader scans every club record while the oracle follows the finance
+chain.
+
+```bash
+.venv/bin/python scripts/oracle_sponsorships.py "/path/to/save.fm" --output /tmp/oracle_sponsorships.json
+./target/release/fm27scout sponsorships "/path/to/save.fm" --output /tmp/rust_sponsorships.json
+.venv/bin/python scripts/compare_sponsorships.py /tmp/oracle_sponsorships.json /tmp/rust_sponsorships.json
+```
+
+On `BB KING - Parma Calcio.fm` (`27.0.0+2486695`) with the locally installed
+fmsave 0.7.0:
+
+```text
+sponsorships: oracle=863 rust=1094 missing=0 extra_shared=0 extra_coverage=231
+coverage: oracle_clubs=121 rust_clubs=167 extra_clubs=46
+```
+
+The comparison uses `club_uid`, type code, start/end dates, total value and
+annual value; a stored annual value of 0 is normalized to unknown on both sides.
+The 0.7.0 checkout rejects 17 Málaga boundary-date rows that current fmsave
+returns, so its 863 rows are the 880-row set minus those; Rust accepts all of
+them. The newer fmsave oracle covers 880 rows across 121 clubs, while Rust now
+reads 1,094 rows across 167 clubs.
+
+The `27.0.1+2503222` save yields 1,627 rows across 318 valid lists and the
+`27.1.0+2505117` save 1,625 rows across 318 valid lists. Each has one rejected
+list (Ipswich Town) because a row stores sentinel-like values near `u32::MAX`;
+the parser reports it as a warning rather than exposing the value.
+
 A controlled club edit on Parma (uid 1155) changed reputation, balance, transfer
 budget, weekly wage budget, corporate facilities, training, youth,
 junior-coaching and youth-recruitment ratings, all-seater capacity and expansion

@@ -1,6 +1,7 @@
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import {
   appInfo,
+  cacheStats,
   getManagedClub,
   getClub,
   getClubFilterOptions,
@@ -10,6 +11,7 @@ import {
   getPlayerRoles,
   getScoutAdvice,
   getScoutOverview,
+  getSponsorshipOverview,
   getStaffFilterOptions,
   getSquadAnalysis,
   listSaves,
@@ -60,6 +62,8 @@ export function buildPlayerQuery(
     ca_max: filters.caMax,
     pa_min: filters.paMin,
     pa_max: filters.paMax,
+    reputation_min: filters.reputationMin,
+    reputation_max: filters.reputationMax,
     pa_ca_gap_min: filters.paCaGapMin,
     generated: filters.generated,
     positions: filters.positions,
@@ -118,6 +122,9 @@ export function buildClubQuery(
     youth_recruitment_max: filters.youthRecruitmentMax,
     player_count_min: filters.playerCountMin,
     has_stadium: filters.hasStadium,
+    has_sponsorships: filters.hasSponsorships,
+    sponsorship_annual_min: filters.sponsorshipAnnualMin,
+    sponsorship_annual_max: filters.sponsorshipAnnualMax,
     sort,
     sort_by: primary?.by ?? "reputation",
     sort_dir: primary?.dir ?? "desc",
@@ -184,6 +191,15 @@ export function useAppInfo(enabled = true) {
     queryFn: appInfo,
     enabled,
     staleTime: Infinity,
+  });
+}
+
+export function useCacheStats(enabled = true) {
+  return useQuery({
+    queryKey: ["cache-stats"],
+    queryFn: cacheStats,
+    enabled,
+    staleTime: 10_000,
   });
 }
 
@@ -324,6 +340,15 @@ export function useClubDetail(uid: number | null) {
     queryKey: ["club", saveId, uid],
     queryFn: () => getClub(saveId!, uid!),
     enabled: saveId != null && uid != null,
+    staleTime: 60_000,
+  });
+}
+
+export function useSponsorshipOverview(saveId: number | null) {
+  return useQuery({
+    queryKey: ["sponsorship-overview", saveId],
+    queryFn: () => getSponsorshipOverview(saveId!),
+    enabled: saveId != null,
     staleTime: 60_000,
   });
 }

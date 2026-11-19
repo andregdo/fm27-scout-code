@@ -16,6 +16,15 @@ test("player inspector shows other nationalities", async ({ page }) => {
   await expect(inspector).toContainText("Other nationalities:");
   await expect(inspector).toContainText("Croatia");
 
+  const reputation = inspector.getByTestId("inspector-reputation");
+  await expect(reputation).toContainText("Reputation");
+  await expect(reputation).toContainText("Home");
+  await expect(reputation).toContainText("9,800");
+  await expect(reputation).toContainText("Current");
+  await expect(reputation).toContainText("9,500");
+  await expect(reputation).toContainText("World");
+  await expect(reputation).toContainText("8,800");
+
   // The header carries action buttons; its title must stay on one line and the
   // row must not overflow the aside at a narrower window.
   await page.setViewportSize({ width: 1024, height: 720 });

@@ -9,10 +9,11 @@ use fm27_core::container::SaveFile;
 use fm27_core::editor::{EditChange, PlayerEditRequest, PlayerEditor, TransferChange};
 use fm27_core::export::ExportWriter;
 use fm27_core::metadata::read_metadata;
-use fm27_core::model::{Attributes, ClubDetail, Positions};
+use fm27_core::model::{Attributes, ClubDetail, Positions, SponsorshipOverview};
 use fm27_core::store::{
-    ClubFilterOptions, ClubPage, ClubQuery, FilterOptions, PlayerPage, PlayerQuery, SaveRecord,
-    SnapshotPoint, SquadAnalysis, StaffFilterOptions, StaffPage, StaffQuery, Store,
+    CacheCleanupReport, CacheStats, ClubFilterOptions, ClubPage, ClubQuery, FilterOptions,
+    PlayerPage, PlayerQuery, SaveRecord, SnapshotPoint, SquadAnalysis, StaffFilterOptions,
+    StaffPage, StaffQuery, Store,
 };
 use fm27_core::{
     ParseReport, Player, SaveSummary, inspect_save, parse_save_with_progress,
@@ -487,6 +488,17 @@ async fn club_filter_options(
 }
 
 #[tauri::command]
+async fn sponsorship_overview(
+    state: State<'_, AppState>,
+    save_id: i64,
+) -> Result<SponsorshipOverview, String> {
+    run_read_command(state, move |store| {
+        store.sponsorship_overview(save_id).map_err(error_string)
+    })
+    .await
+}
+
+#[tauri::command]
 fn estimate_player_ca(request: CaEstimateRequest) -> Result<CaEstimate, String> {
     let mut attributes = Attributes::default();
     for (index, key) in fm27_core::layout::ATTRIBUTE_KEYS.iter().enumerate() {
@@ -922,6 +934,25 @@ fn delete_save(state: State<'_, AppState>, save_id: i64) -> Result<(), String> {
 }
 
 #[tauri::command]
+async fn cache_stats(state: State<'_, AppState>) -> Result<CacheStats, String> {
+    run_read_command(state, move |store| {
+        store.cache_stats(parser_version()).map_err(error_string)
+    })
+    .await
+}
+
+#[tauri::command]
+async fn cleanup_cache(state: State<'_, AppState>) -> Result<CacheCleanupReport, String> {
+    let store = std::sync::Arc::clone(&state.store);
+    tauri::async_runtime::spawn_blocking(move || {
+        let mut store = store.lock().map_err(error_string)?;
+        store.cleanup_cache(parser_version()).map_err(error_string)
+    })
+    .await
+    .map_err(error_string)?
+}
+
+#[tauri::command]
 async fn export_players(
     state: State<'_, AppState>,
     query: PlayerQuery,
@@ -1221,6 +1252,7 @@ pub fn run() {
             get_player,
             get_club,
             club_filter_options,
+            sponsorship_overview,
             edit_player,
             edit_club,
             save_pending_changes,
@@ -1236,6 +1268,8 @@ pub fn run() {
             list_competitions,
             get_filter_options,
             delete_save,
+            cache_stats,
+            cleanup_cache,
             export_players,
             export_staff,
             app_info,

@@ -4,7 +4,8 @@
 //! inside its own record. The last row is the month before the save's clock month,
 //! except on a month's last day, where the save already holds that month's row.
 //! Only the clubs of the tracked league nations keep a series; most clubs yield no
-//! row at all.
+//! row at all. Sponsorship lists are read from every club record independently of
+//! the finance series.
 
 use std::collections::HashMap;
 
@@ -12,7 +13,8 @@ use chrono::{Datelike, Months, NaiveDate};
 
 use crate::clubs::{ClubIndex, ClubRecordSpan};
 use crate::layout::{FinanceLayout, read_i32, read_u8, read_u32};
-use crate::model::FinanceMonth;
+use crate::model::{FinanceMonth, Sponsorship};
+use crate::sponsorships::{SponsorListLookup, scan_sponsor_list};
 
 #[derive(Debug, Clone, Default)]
 pub struct ClubFinanceData {
@@ -20,6 +22,13 @@ pub struct ClubFinanceData {
     /// `Some(value)` when the club's record has a finance chain and a rating in the
     /// 1..=20 range; `None` when the club has no chain or stores an unset rating.
     pub corporate_facilities: HashMap<u32, Option<u8>>,
+    /// Primary sponsor contracts, grouped by club and kept in stored order.
+    pub sponsorships: Vec<Sponsorship>,
+    /// Structurally valid primary sponsor lists, including explicitly empty ones.
+    pub sponsor_lists: usize,
+    pub empty_sponsor_lists: usize,
+    /// Lists whose prefix established ownership but whose rows failed the checks.
+    pub rejected_sponsor_lists: usize,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -50,45 +59,66 @@ pub fn read_club_finances(
 ) -> ClubFinanceData {
     let mut data = ClubFinanceData::default();
     for (&club_uid, &span) in &club_index.record_spans {
-        let Some(chain) = locate_finance_chain(game_db, span) else {
-            continue;
-        };
         let club_name = club_index
             .club(club_uid)
             .map(|club| club.name.clone())
             .unwrap_or_default();
-        let labels = month_labels(clock, chain.row_count);
-        for (index, month) in labels.into_iter().enumerate() {
-            let row = chain.head + FinanceLayout::ROW_BYTES * index;
-            let Some(row) = read_finance_row(game_db, row) else {
-                continue;
-            };
-            data.months.push(FinanceMonth {
-                club_uid,
-                club_name: club_name.clone(),
-                month,
-                balance: row.balance,
-                transfer_budget_allocated: row.transfer_budget_allocated,
-                transfer_budget_remaining: row.transfer_budget_remaining,
-                wage_budget_weekly: row.wage_budget_weekly,
-                wage_payroll_weekly: row.wage_payroll_weekly,
-                income_excluding_transfers: row.income_excluding_transfers,
-                net_transfers: row.net_transfers,
-                wage_bill: row.wage_bill,
-                net: row.net,
-                expenditure_excluding_transfers: row.expenditure_excluding_transfers,
-                total_income: row.total_income,
-                total_expenditure: row.total_expenditure,
-            });
-        }
-        let facility_offset = chain.facility_offset();
-        if facility_offset < span.record_end {
-            if let Some(value) = read_u8(game_db, facility_offset) {
-                let (lowest, highest) = FinanceLayout::FACILITY_RANGE;
-                data.corporate_facilities.insert(
+        if let Some(chain) = locate_finance_chain(game_db, span) {
+            let labels = month_labels(clock, chain.row_count);
+            for (index, month) in labels.into_iter().enumerate() {
+                let row = chain.head + FinanceLayout::ROW_BYTES * index;
+                let Some(row) = read_finance_row(game_db, row) else {
+                    continue;
+                };
+                data.months.push(FinanceMonth {
                     club_uid,
-                    (lowest..=highest).contains(&value).then_some(value),
-                );
+                    club_name: club_name.clone(),
+                    month,
+                    balance: row.balance,
+                    transfer_budget_allocated: row.transfer_budget_allocated,
+                    transfer_budget_remaining: row.transfer_budget_remaining,
+                    wage_budget_weekly: row.wage_budget_weekly,
+                    wage_payroll_weekly: row.wage_payroll_weekly,
+                    income_excluding_transfers: row.income_excluding_transfers,
+                    net_transfers: row.net_transfers,
+                    wage_bill: row.wage_bill,
+                    net: row.net,
+                    expenditure_excluding_transfers: row.expenditure_excluding_transfers,
+                    total_income: row.total_income,
+                    total_expenditure: row.total_expenditure,
+                });
+            }
+            let facility_offset = chain.facility_offset();
+            if facility_offset < span.record_end {
+                if let Some(value) = read_u8(game_db, facility_offset) {
+                    let (lowest, highest) = FinanceLayout::FACILITY_RANGE;
+                    data.corporate_facilities.insert(
+                        club_uid,
+                        (lowest..=highest).contains(&value).then_some(value),
+                    );
+                }
+            }
+        }
+        // Sponsorship belongs to the club record, not to the finance chain:
+        // clubs with a shorter finance class still store a list.
+        match scan_sponsor_list(
+            game_db,
+            span.record_start,
+            span.record_end,
+            club_uid,
+            &club_name,
+        ) {
+            SponsorListLookup::Missing => {}
+            SponsorListLookup::Empty => {
+                data.sponsor_lists += 1;
+                data.empty_sponsor_lists += 1;
+            }
+            SponsorListLookup::Valid(rows) => {
+                data.sponsor_lists += 1;
+                data.sponsorships.extend(rows);
+            }
+            SponsorListLookup::Rejected => {
+                data.rejected_sponsor_lists += 1;
             }
         }
     }
@@ -97,6 +127,8 @@ pub fn read_club_finances(
             .cmp(&right.club_uid)
             .then_with(|| left.month.cmp(&right.month))
     });
+    // The per-club order is the order the save stores; this only groups clubs.
+    data.sponsorships.sort_by_key(|row| row.club_uid);
     data
 }
 

@@ -119,6 +119,7 @@ export function ClubTable() {
                 {header("balance", t("clubs.table.balance"), "right")}
                 {header("transfer_budget", t("clubs.table.transferBudget"), "right")}
                 {header("wage_budget", t("clubs.table.wageBudget"), "right")}
+                {header("sponsorship", t("clubs.table.sponsorship"), "right")}
                 {header(
                   "corporate_facilities",
                   t("clubs.table.facilities"),
@@ -208,6 +209,9 @@ export function ClubTable() {
                     </td>
                     <td className="px-2 py-1.5 text-right font-mono text-[var(--muted)]">
                       {formatMoney(club.wage_budget_weekly)}
+                    </td>
+                    <td className="px-2 py-1.5 text-right font-mono text-[var(--muted)]">
+                      {formatMoney(club.sponsorship_annual)}
                     </td>
                     <td className="hidden px-2 py-1.5 text-right text-[10px] text-[var(--muted)] 2xl:table-cell">
                       {facilityRatingLabel(club.corporate_facilities, locale) ?? "—"}
