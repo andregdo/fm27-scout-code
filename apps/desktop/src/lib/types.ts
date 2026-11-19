@@ -325,6 +325,10 @@ export interface PlayerRow {
   ca: number;
   pa: number | null;
   pa_range_code: number | null;
+  /** Player reputation on the save's 1-10000 scale: home nation, current and worldwide. */
+  reputation_home: number;
+  reputation_current: number;
+  reputation_world: number;
   positions_text: string | null;
   positions: Positions;
   attributes: Attributes;
@@ -370,6 +374,9 @@ export interface PlayerQuery {
   ca_max?: number | null;
   pa_min?: number | null;
   pa_max?: number | null;
+  /** Current player reputation, on the save's 1-10000 scale. */
+  reputation_min?: number | null;
+  reputation_max?: number | null;
   pa_ca_gap_min?: number | null;
   /** `true` keeps only system-generated players, `false` keeps only database players. */
   generated?: boolean | null;
@@ -1053,6 +1060,8 @@ export interface FilterOptions {
   max_ca: number | null;
   min_pa: number | null;
   max_pa: number | null;
+  min_reputation: number | null;
+  max_reputation: number | null;
   min_value: number | null;
   max_value: number | null;
   min_wage: number | null;

@@ -45,6 +45,8 @@ export interface Filters {
   caMax: number | null;
   paMin: number | null;
   paMax: number | null;
+  reputationMin: number | null;
+  reputationMax: number | null;
   paCaGapMin: number | null;
   generated: boolean | null;
   positions: string[];
@@ -165,6 +167,8 @@ export const EMPTY_FILTERS: Filters = {
   caMax: null,
   paMin: null,
   paMax: null,
+  reputationMin: null,
+  reputationMax: null,
   paCaGapMin: null,
   generated: null,
   positions: [],

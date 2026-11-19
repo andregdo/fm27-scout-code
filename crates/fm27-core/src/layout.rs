@@ -41,14 +41,15 @@ pub fn editable_builds() -> String {
 /// squads, and before facility rows accepted the second supporter-share block
 /// that build 27.0.1+2503222 stores after the supporter traits, and before build
 /// 27.1.0+2505117 was verified and its full-finance closing block was accepted
-/// at both the 67-byte and 72-byte sizes.
+/// at both the 67-byte and 72-byte sizes. The current cache also carries each
+/// player's home, current and world reputation for table display and filtering.
 pub const PARSER_VERSION: &str = concat!(
     "1.1.8",
     "+nation-names+listing+listing-flags+injury-windows+club-finance+stadiums",
     "+club-facilities+youth-level-edt+competition-names+club-leagues+season-stats+unique-ids",
     "+staff+second-nations+managed-club+build-2494687+build-2503222+squad-slots",
     "+squad-fixtures+club-history-gender+identity-gender+facility-share-tail+staff-job-titles",
-    "+build-2505117-finance-tail"
+    "+build-2505117-finance-tail+player-reputation"
 );
 pub const EARLIEST_YEAR: i32 = 1901;
 pub const LATEST_YEAR: i32 = 2200;

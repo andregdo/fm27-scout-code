@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import {
+  Award,
   ChevronDown,
   CircleHelp,
   Filter,
@@ -57,12 +58,11 @@ export function FilterSidebar() {
     if (filters.listings.length) count++;
     if (filters.ageMin != null || filters.ageMax != null) count++;
     if (filters.caMin != null || filters.caMax != null) count++;
-    if (
-      filters.paMin != null ||
+    if (filters.paMin != null ||
       filters.paMax != null ||
-      filters.paCaGapMin != null
-    )
+      filters.paCaGapMin != null)
       count++;
+    if (filters.reputationMin != null || filters.reputationMax != null) count++;
     if (filters.generated != null) count++;
     if (filters.positions.length) count++;
     if (filters.attributes.length) count += filters.attributes.length;
@@ -446,6 +446,20 @@ export function FilterSidebar() {
               </div>
             </>
           )}
+        </Section>
+
+        <Section title={t("filter.reputation")} icon={<Award size={12} />}>
+          <RangeInput
+            label={t("filter.reputationCurrent")}
+            min={filters.reputationMin}
+            max={filters.reputationMax}
+            onMin={(reputationMin) => patchFilters({ reputationMin })}
+            onMax={(reputationMax) => patchFilters({ reputationMax })}
+            step={100}
+            placeholderMin={String(options?.min_reputation ?? 0)}
+            placeholderMax={String(options?.max_reputation ?? 10000)}
+            testId="reputation-range"
+          />
         </Section>
 
         <Section title={t("filter.positions")} icon={<CircleHelp size={12} />}>

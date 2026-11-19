@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
   ArrowRightLeft,
+  Award,
   BriefcaseBusiness,
   CalendarDays,
   Check,
@@ -39,6 +40,7 @@ import {
   traitLabel,
 } from "@/lib/labels";
 import { useI18n } from "@/lib/useI18n";
+import { formatNumber } from "@/lib/i18n";
 import {
   attributeTone,
   caLabelClass,
@@ -150,6 +152,11 @@ export function Inspector() {
     )
     .filter((label) => label.length > 0);
   const maxValue = displayMode === "display" ? 20 : 100;
+  const reputationRows = [
+    ["inspector.reputationHome", player.reputation.home],
+    ["inspector.reputationCurrent", player.reputation.current],
+    ["inspector.reputationWorld", player.reputation.world],
+  ] as const;
   const tabs: Array<[Tab, string]> = [
     ...(dataMode !== "moneyball"
       ? ([
@@ -375,6 +382,36 @@ export function Inspector() {
               label={t("inspector.condition")}
               value={`${Math.round(player.raw_condition / 100)}% / ${Math.round(player.raw_match_sharpness / 100)}%`}
             />
+          </div>
+
+          <div
+            className="mt-3 rounded-[7px] border border-[var(--line)] bg-[var(--surface-2)] px-2.5 py-2"
+            data-testid="inspector-reputation"
+          >
+            <div className="flex items-center gap-1 text-[9px] font-semibold uppercase tracking-wider text-[var(--muted)]">
+              <Award size={10} />
+              {t("inspector.reputation")}
+            </div>
+            <div className="mt-1.5 space-y-1.5">
+              {reputationRows.map(([key, value]) => (
+                <div key={key} className="flex items-center gap-1.5">
+                  <span className="w-[68px] shrink-0 truncate text-[10px] text-[var(--muted)]">
+                    {t(key)}
+                  </span>
+                  <div className="relative h-1.5 flex-1 overflow-hidden rounded-full bg-[var(--surface-3)]">
+                    <div
+                      className="h-full rounded-full bg-[var(--accent)]"
+                      style={{
+                        width: `${Math.max(2, Math.min(100, (value / 10000) * 100))}%`,
+                      }}
+                    />
+                  </div>
+                  <span className="w-14 shrink-0 text-right font-mono text-[10px] font-semibold tabular-nums text-[var(--ink)]">
+                    {formatNumber(value, locale)}
+                  </span>
+                </div>
+              ))}
+            </div>
           </div>
 
           {player.on_loan && (

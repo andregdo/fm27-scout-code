@@ -80,6 +80,9 @@
   injury history / suspended / on loan / free agent / available.
 - Player origin: system-generated newgens are marked in the table and profile and
   can be included, excluded or isolated with the player-origin filter.
+- Player reputation: the table shows the current reputation in a sortable column,
+  the sidebar filters by a current-reputation range, and the profile shows home,
+  current and world reputation as labelled bars on the save's 1–10000 scale.
 - Other nationalities: the profile lists every other eligible nation the save
   stores, resolved through the bundled nation-name table.
 - Role scores: 29 FM-style roles weighted by key attributes and combined with

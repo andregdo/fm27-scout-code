@@ -79,7 +79,8 @@ const PLAYER_ROWS_SELECT: &str =
             p.nation_name, p.gender, p.best_role_id, p.best_role_name,
             p.best_role_score, p.best_role_position, p.injury_status, p.injury_until,
             p.recent_injury, p.suspension_count, p.transfer_listed, p.loan_listed,
-            p.unique_id, p.team_id, p.team_slot
+            p.unique_id, p.team_id, p.team_slot,
+            p.reputation_home, p.reputation_current, p.reputation_world
      FROM players p
      LEFT JOIN contracts c ON c.save_id = p.save_id AND c.player_uid = p.uid";
 
@@ -276,6 +277,9 @@ pub struct PlayerQuery {
     pub ca_max: Option<u16>,
     pub pa_min: Option<u16>,
     pub pa_max: Option<u16>,
+    /// Current player reputation, on the save's 1-10000 scale.
+    pub reputation_min: Option<u16>,
+    pub reputation_max: Option<u16>,
     /// Minimum (potential - current) ability gap, used by the wonderkid view.
     pub pa_ca_gap_min: Option<u16>,
     /// `true` keeps only system-generated players, `false` keeps only database players.
@@ -318,6 +322,11 @@ pub struct PlayerRow {
     pub ca: u16,
     pub pa: Option<i16>,
     pub pa_range_code: Option<i16>,
+    /// Player reputation on the save's 1-10000 scale: home nation, current and
+    /// worldwide. Displayed values come from the player record header.
+    pub reputation_home: u16,
+    pub reputation_current: u16,
+    pub reputation_world: u16,
     pub positions_text: Option<String>,
     pub positions: Positions,
     pub attributes: Attributes,
@@ -682,6 +691,8 @@ pub struct FilterOptions {
     pub max_ca: Option<u16>,
     pub min_pa: Option<u16>,
     pub max_pa: Option<u16>,
+    pub min_reputation: Option<u16>,
+    pub max_reputation: Option<u16>,
     pub min_value: Option<u32>,
     pub max_value: Option<u32>,
     pub min_wage: Option<u32>,
@@ -816,10 +827,10 @@ impl Store {
                   best_role_position, injury_status, injury_until, recent_injury,
                   suspension_count, injuries_json, suspensions_json, contract_end, wage, on_loan,
                   transfer_listed, loan_listed, league_competition_id, league_name, team_id,
-                  team_slot, data_json)
+                  team_slot, reputation_home, reputation_current, reputation_world, data_json)
                  VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16,?17,?18,?19,
                          ?20,?21,?22,?23,?24,?25,?26,?27,?28,?29,?30,?31,?32,?33,?34,?35,?36,
-                         ?37,?38,?39,?40,?41,?42,?43,?44,?45,?46,?47,?48)",
+                         ?37,?38,?39,?40,?41,?42,?43,?44,?45,?46,?47,?48,?49,?50,?51)",
             )?;
             let mut snapshot_stmt = transaction.prepare(
                 "INSERT INTO player_snapshots
@@ -915,6 +926,9 @@ impl Store {
                     player.league_name,
                     player.team_id,
                     player.team_slot,
+                    player.reputation.home,
+                    player.reputation.current,
+                    player.reputation.world,
                     serde_json::to_string(player)?,
                 ])?;
 
@@ -3175,7 +3189,8 @@ impl Store {
 
         let ranges = self.conn.query_row(
             "SELECT MIN(age), MAX(age), MIN(ca), MAX(ca), MIN(pa), MAX(pa),
-                    MIN(transfer_value), MAX(transfer_value)
+                    MIN(transfer_value), MAX(transfer_value),
+                    MIN(reputation_current), MAX(reputation_current)
              FROM players WHERE save_id = ?1",
             params![save_id],
             |row| {
@@ -3188,6 +3203,8 @@ impl Store {
                     row.get::<_, Option<u16>>(5)?,
                     row.get::<_, Option<u32>>(6)?,
                     row.get::<_, Option<u32>>(7)?,
+                    row.get::<_, Option<u16>>(8)?,
+                    row.get::<_, Option<u16>>(9)?,
                 ))
             },
         )?;
@@ -3209,6 +3226,8 @@ impl Store {
             max_ca: ranges.3,
             min_pa: ranges.4,
             max_pa: ranges.5,
+            min_reputation: ranges.8,
+            max_reputation: ranges.9,
             min_value: ranges.6,
             max_value: ranges.7,
             min_wage,
@@ -3534,6 +3553,13 @@ fn migrate(conn: &Connection) -> Result<()> {
         ("players", "league_name", "TEXT"),
         ("players", "team_id", "INTEGER"),
         ("players", "team_slot", "INTEGER"),
+        ("players", "reputation_home", "INTEGER NOT NULL DEFAULT 0"),
+        (
+            "players",
+            "reputation_current",
+            "INTEGER NOT NULL DEFAULT 0",
+        ),
+        ("players", "reputation_world", "INTEGER NOT NULL DEFAULT 0"),
         ("players", "gender", "INTEGER"),
         ("players", "best_role_id", "TEXT"),
         ("players", "best_role_name", "TEXT"),
@@ -3652,6 +3678,9 @@ fn map_player_row(row: &Row<'_>, include_hidden: bool) -> rusqlite::Result<Playe
         ca: row.get(8)?,
         pa: row.get(9)?,
         pa_range_code: row.get(10)?,
+        reputation_home: row.get(39)?,
+        reputation_current: row.get(40)?,
+        reputation_world: row.get(41)?,
         positions_text: row.get(11)?,
         positions: parse_json_column(row.get::<_, String>(12)?, "positions"),
         attributes: parse_json_column(row.get::<_, String>(13)?, "attributes"),
@@ -4044,6 +4073,13 @@ fn build_where(query: &PlayerQuery, params: &mut Vec<Value>) -> Result<String> {
     add_range(query.age_min, query.age_max, "p.age", params, &mut clauses);
     add_range(query.ca_min, query.ca_max, "p.ca", params, &mut clauses);
     add_range(query.pa_min, query.pa_max, "p.pa", params, &mut clauses);
+    add_range(
+        query.reputation_min,
+        query.reputation_max,
+        "p.reputation_current",
+        params,
+        &mut clauses,
+    );
     if let Some(gap) = query.pa_ca_gap_min {
         clauses.push("(p.pa - p.ca) >= ?".to_owned());
         params.push(Value::Integer(gap as i64));
@@ -4306,6 +4342,9 @@ fn sort_expression(by: &str) -> String {
         "gender" => "p.gender".to_owned(),
         "ca" => "p.ca".to_owned(),
         "pa" => "p.pa".to_owned(),
+        "reputation" | "reputation_current" => "p.reputation_current".to_owned(),
+        "reputation_home" => "p.reputation_home".to_owned(),
+        "reputation_world" => "p.reputation_world".to_owned(),
         "value" | "transfer_value" => "p.transfer_value".to_owned(),
         "wage" => "c.wage".to_owned(),
         "contract_end" => "c.end_date".to_owned(),
@@ -4702,6 +4741,48 @@ mod tests {
         // A stale saved view may still carry the removed unknown id; it is
         // ignored instead of matching nothing.
         assert_eq!(query(vec![255]).total, 4);
+    }
+
+    #[test]
+    fn filters_and_sorts_players_by_current_reputation() {
+        let store = Store::open_in_memory().expect("store");
+        store
+            .conn
+            .execute_batch(
+                "INSERT INTO saves
+                   (id, path, file_name, file_size, mtime_ns, fingerprint, game, build,
+                    parser_version, parsed_at)
+                 VALUES (1, '/tmp/test.fm', 'test.fm', 1, 1, 'fp', 'FM27', '27.0.0', 'test', 'now');
+                 INSERT INTO players
+                   (save_id, uid, name, ca, reputation_home, reputation_current,
+                    reputation_world, positions_json, attributes_json,
+                    raw_attributes_json, data_json)
+                 VALUES
+                   (1, 1, 'Unknown', 100, 100, 10, 5, '{}', '{}', '{}', '{}'),
+                   (1, 2, 'Local star', 100, 4000, 4000, 500, '{}', '{}', '{}', '{}'),
+                   (1, 3, 'World star', 100, 7000, 9000, 8500, '{}', '{}', '{}', '{}');",
+            )
+            .expect("seed");
+
+        let page = store
+            .query_players(&PlayerQuery {
+                save_id: 1,
+                reputation_min: Some(1000),
+                sort_by: Some("reputation".to_owned()),
+                sort_dir: Some("desc".to_owned()),
+                page_size: Some(10),
+                ..PlayerQuery::default()
+            })
+            .expect("reputation query");
+        assert_eq!(page.total, 2);
+        assert_eq!(page.rows[0].name.as_deref(), Some("World star"));
+        assert_eq!(page.rows[0].reputation_current, 9000);
+        assert_eq!(page.rows[0].reputation_world, 8500);
+        assert_eq!(page.rows[1].reputation_home, 4000);
+
+        let options = store.filter_options(1).expect("filter options");
+        assert_eq!(options.min_reputation, Some(10));
+        assert_eq!(options.max_reputation, Some(9000));
     }
 
     #[test]

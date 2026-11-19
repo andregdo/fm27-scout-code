@@ -264,6 +264,24 @@ export function PlayerTable() {
         ),
       },
       {
+        id: "reputation",
+        accessorFn: (row) => row.reputation_current,
+        header: t("table.reputation"),
+        size: 78,
+        cell: ({ row }) => (
+          <span
+            className="font-mono text-[10px] tabular-nums text-[var(--ink)]"
+            title={t("common.reputationDetail", {
+              home: formatNumber(row.original.reputation_home, locale),
+              current: formatNumber(row.original.reputation_current, locale),
+              world: formatNumber(row.original.reputation_world, locale),
+            })}
+          >
+            {formatNumber(row.original.reputation_current, locale)}
+          </span>
+        ),
+      },
+      {
         id: "value",
         accessorFn: (row) => row.transfer_value,
         header: t("table.value"),
@@ -362,7 +380,7 @@ export function PlayerTable() {
       return true;
     });
     return visibleColumns.map((column) =>
-      column.id && ["name", "club", "positions", "ca", "pa", "value", "wage", "contract", "height", "foot"].includes(column.id)
+      column.id && ["name", "club", "positions", "ca", "pa", "reputation", "value", "wage", "contract", "height", "foot"].includes(column.id)
         ? { ...column, meta: { ...(column.meta ?? {}), sortable: true } }
         : column,
     );
@@ -398,6 +416,7 @@ export function PlayerTable() {
     status: "injury_status",
     ca: "ca",
     pa: "pa",
+    reputation: "reputation",
     value: "value",
     wage: "wage",
     contract: "contract_end",

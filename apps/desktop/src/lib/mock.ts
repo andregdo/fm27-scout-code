@@ -216,7 +216,12 @@ function buildPlayer(index: number): Player {
     ca,
     pa,
     pa_range_code: null,
-    reputation: { bucket: 80 + (index % 90), home: 3000, current: 2500, world: 1500 },
+    reputation: {
+      bucket: 80 + (index % 90),
+      home: index === 0 ? 9800 : 2000 + ((index * 37) % 6000),
+      current: index === 0 ? 9500 : 500 + ((index * 53) % 8000),
+      world: index === 0 ? 8800 : 100 + ((index * 29) % 6000),
+    },
     club_uid: clubUid,
     club_name: club,
     club_short_name: club.split(" ")[0],
@@ -493,6 +498,9 @@ export function mockPlayerRow(player: Player): PlayerRow {
     ca: player.ca,
     pa: player.pa,
     pa_range_code: player.pa_range_code,
+    reputation_home: player.reputation.home,
+    reputation_current: player.reputation.current,
+    reputation_world: player.reputation.world,
     positions_text: positionsText,
     positions: player.positions,
     attributes: player.attributes,
@@ -623,6 +631,8 @@ export function mockFilterOptions(): FilterOptions {
     max_ca: 180,
     min_pa: 70,
     max_pa: 200,
+    min_reputation: Math.min(...MOCK_PLAYERS.map((player) => player.reputation.current)),
+    max_reputation: Math.max(...MOCK_PLAYERS.map((player) => player.reputation.current)),
     min_value: 10000,
     max_value: 60000000,
     min_wage: 500,
@@ -672,6 +682,12 @@ export function mockQuery(query: PlayerQuery): {
   if (query.ca_max != null) rows = rows.filter((row) => row.ca <= query.ca_max!);
   if (query.pa_min != null) rows = rows.filter((row) => (row.pa ?? 0) >= query.pa_min!);
   if (query.pa_max != null) rows = rows.filter((row) => (row.pa ?? 999) <= query.pa_max!);
+  if (query.reputation_min != null) {
+    rows = rows.filter((row) => row.reputation_current >= query.reputation_min!);
+  }
+  if (query.reputation_max != null) {
+    rows = rows.filter((row) => row.reputation_current <= query.reputation_max!);
+  }
   if (query.pa_ca_gap_min != null) {
     rows = rows.filter((row) => row.pa != null && row.pa - row.ca >= query.pa_ca_gap_min!);
   }
@@ -714,6 +730,9 @@ export function mockQuery(query: PlayerQuery): {
           case "wage": return row.wage;
           case "contract_end": return row.contract_end;
           case "pa": return row.pa;
+          case "reputation": return row.reputation_current;
+          case "reputation_home": return row.reputation_home;
+          case "reputation_world": return row.reputation_world;
           case "role": return row.best_role_score;
           case "best_role": return row.best_role_name;
           default: return row.ca;

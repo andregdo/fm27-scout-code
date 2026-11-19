@@ -61,6 +61,8 @@ export function buildPlayerQuery(
     ca_max: filters.caMax,
     pa_min: filters.paMin,
     pa_max: filters.paMax,
+    reputation_min: filters.reputationMin,
+    reputation_max: filters.reputationMax,
     pa_ca_gap_min: filters.paCaGapMin,
     generated: filters.generated,
     positions: filters.positions,
