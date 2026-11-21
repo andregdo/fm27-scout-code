@@ -247,6 +247,30 @@ u32 name length at +158 and that many UTF-8 bytes at +162 follow, and the row is
 The table is located by twelve consecutive rows carrying ordinals 1, 2, 3 …,
 the uid twice and a zero byte. Ownership is stored; home-ground use is not.
 
+### Stadium name references
+
+Most stadiums store no name in the save. The installed game database's
+`lang_db.dat` first language section holds the stadium name table, and
+`scripts/build_stadium_names.py` extracts it into `shared/stadium-names.csv`
+keyed by the database uid. A save also contains named object references in
+`news`, `play_fixture_manager` and `edit_session_man`:
+
+```text
++0  tag                       02
++1  stadium ordinal + 1       u32
++5  database uid              u32
++9  name length               u32
++13 name                      UTF-8, name_length bytes
+```
+
+The field at +1 is the row's one-based ordinal plus one, so the zero-based row
+index is `field - 2`. A reference is accepted only when its name
+matches the database name for that uid after ignoring case and punctuation.
+This bridges grounds whose save uid differs from the database uid, such as
+San Siro (`152588` -> `156312`) and Allianz Arena (`8700532` -> `8700726`).
+References disappear when the game clears the news section, so a dynamic ground
+can be unnamed in a later save even when an earlier save named it.
+
 ## Contract
 
 ```text

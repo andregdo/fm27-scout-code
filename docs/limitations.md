@@ -76,6 +76,13 @@
   parsed for the clubs that keep a finance chain. English Youth Level is read
   from the installed game's `eng_youth_grades.edt`; it is not stored in the save,
   so it is blank when the game files are unavailable or the club is not English.
+- Stadium names are stored inline for only a couple of hundred generated
+  grounds. `shared/stadium-names.csv` names database grounds by uid, and
+  validated references in `news`, `play_fixture_manager` and `edit_session_man`
+  bridge grounds whose save uid differs from the database uid. On the `27.1.0`
+  reference save 11,378 of 27,091 rows are named. The rest are generated grounds
+  with no name in the save or the installed database and stay unnamed; a dynamic
+  ground also loses its name when the game clears the news reference.
 - The stadium table stores ownership but no direct club -> ground pointer.
   Home-ground use would require the fixture calendar and is not implemented yet.
 - The Value finder is an experimental value-for-money ranking, not a

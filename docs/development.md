@@ -141,6 +141,14 @@ python3 -m venv .venv
 .venv/bin/python scripts/compare_sponsorships.py /tmp/oracle_sponsorships.json /tmp/rust_sponsorships.json
 ```
 
+The bundled stadium name table is generated from the installed FM27 database
+(`zstd` is required; the script picks the newest database version by default):
+
+```bash
+python3 scripts/build_stadium_names.py
+python3 scripts/build_stadium_names.py --database-version 2700
+```
+
 Reference results are in [validation.md](validation.md). The name-table format is
 described in [name-tables.md](name-tables.md), and the release process in
 [release.md](release.md).

@@ -33,3 +33,23 @@ stage/competition ID 不同：应用从 stage 表建立赛事索引，再读取�
 
 停赛视图中的赛事范围停赛会显示关联后的赛事名称（未填表时回退 `Competition #id`）；
 国家范围停赛会直接显示国家名称。
+
+## 球场
+
+内置 `shared/stadium-names.csv`：
+
+```csv
+database_id,name
+680,Old Trafford
+5114336,Emirates Stadium
+```
+
+这个表由 `scripts/build_stadium_names.py` 从安装的 FM27 2700 数据库第一个语言区的
+`lang_db.dat` 生成（需要 `zstd` 命令）；其他数据库版本可重新生成。解析球场行时先使用
+行内名称，再按球场 UID 查表。
+
+存档的 `news`、`play_fixture_manager` 和 `edit_session_man` 还包含
+`02 <球场表序号+1> <数据库 UID> <名称长度> <名称>` 形式的引用记录。解析器用它们在
+存档 UID 与数据库 UID 不一致时补名称（例如 San Siro、Allianz Arena），匹配时忽略
+大小写和标点。游戏清理新闻后，相关球场的引用会消失；没有行内名称、名称表记录或有效
+引用的球场保持未命名，解析器不会按俱乐部或容量猜测名称。

@@ -10,6 +10,7 @@ use crate::bytes::find_bytes;
 use crate::clubs::ClubIndex;
 use crate::layout::{MISSING_U32, StadiumLayout, decode_date, read_u8, read_u16, read_u32};
 use crate::model::Stadium;
+use crate::stadium_names;
 
 #[derive(Debug, Clone, Default)]
 pub struct StadiumIndex {
@@ -27,6 +28,18 @@ impl StadiumIndex {
 
     pub fn row_offset(&self, uid: u32) -> Option<usize> {
         self.row_offsets.get(&uid).copied()
+    }
+
+    /// Fill names for rows the database could not name, using references read
+    /// from the save. A stored or database name is never overwritten.
+    pub fn apply_name_refs(&mut self, references: &HashMap<usize, String>) {
+        for (row_index, stadium) in self.stadiums.iter_mut().enumerate() {
+            if stadium.name.is_none() {
+                if let Some(name) = references.get(&row_index) {
+                    stadium.name = Some(name.clone());
+                }
+            }
+        }
     }
 }
 
@@ -114,7 +127,7 @@ fn decode_row(
 ) -> Option<(Stadium, usize)> {
     let flags = read_u8(game_db, row_offset + StadiumLayout::FLAGS_OFFSET)?;
     let mut row_length = StadiumLayout::ROW_BYTES;
-    let mut name = None;
+    let mut inline_name = None;
     if flags & StadiumLayout::INLINE_NAME_FLAG != 0 {
         let length = read_u32(game_db, row_offset + StadiumLayout::NAME_LENGTH_OFFSET)?;
         let (lowest, highest) = StadiumLayout::NAME_LENGTH_RANGE;
@@ -124,7 +137,7 @@ fn decode_row(
         let start = row_offset + StadiumLayout::NAME_OFFSET;
         let end = start.checked_add(length as usize)?;
         let text = std::str::from_utf8(game_db.get(start..end)?).ok()?;
-        name = Some(text.to_owned());
+        inline_name = Some(text.to_owned());
         row_length = StadiumLayout::ROW_BYTES
             .checked_add(StadiumLayout::NAMED_ROW_EXTRA_BYTES)?
             .checked_add(length as usize)?;
@@ -133,6 +146,7 @@ fn decode_row(
         }
     }
     let uid = read_u32(game_db, row_offset + StadiumLayout::UID_OFFSET)?.checked_add(1)?;
+    let name = inline_name.or_else(|| stadium_names::name_for_uid(uid).map(str::to_owned));
     let all_seater_capacity = read_u32(game_db, row_offset + StadiumLayout::ALL_SEATER_OFFSET)?;
     let expansion_capacity = read_u32(game_db, row_offset + StadiumLayout::EXPANSION_OFFSET)?;
     let capacity =

@@ -35,6 +35,7 @@ pub mod roster;
 pub mod scouting;
 pub mod season_stats;
 pub mod sponsorships;
+pub mod stadium_names;
 pub mod stadiums;
 pub mod staff;
 pub mod stats_moneyball;

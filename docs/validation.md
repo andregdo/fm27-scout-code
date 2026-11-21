@@ -153,6 +153,34 @@ stadiums: oracle=27042 rust=27042 missing=0 extra=0
 mismatches: 0
 ```
 
+## Stadium name validation
+
+`shared/stadium-names.csv` is generated from the installed FM27 2700 database's
+`lang_db.dat` and holds 38,886 stadium names. The ignored real-save test checks
+the resolver on the current reference career:
+
+```bash
+FM27_TEST_SAVE="/path/to/save.fm" cargo test -p fm27-core --release \
+  --test stadium_names_real_save -- --ignored
+```
+
+On `AP King - Milan.fm` (`27.1.0+2505117`):
+
+```text
+stadium rows                    27,091
+named rows                      11,378 (42.0%)
+  database table names          11,103
+  inline names                     177
+  validated save references         98
+```
+
+The `news` section no longer named grounds on this save; `edit_session_man` still
+provided San Siro (row 152588 -> database 156312) and Allianz Arena
+(8700532 -> 8700726). Older saves that still carry stadium references in
+`news`/`play_fixture_manager` also resolve Gtech Community Stadium, Tottenham
+Hotspur Stadium and Signal Iduna Park. A ground with no inline name, database
+uid or validated reference stays unnamed.
+
 ## Club sponsorship validation
 
 The sponsorship pass is compared with the fmsave FM27 oracle. The comparison is

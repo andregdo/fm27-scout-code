@@ -138,7 +138,12 @@ pub fn parse_save_with_progress(
             club.youth_level = youth_levels.get(&club.uid).copied();
         }
     }
-    let stadiums = read_stadium_index(&game_db, &clubs).stadiums;
+    let mut stadium_index = read_stadium_index(&game_db, &clubs);
+    if !stadium_index.stadiums.is_empty() {
+        let name_refs = crate::stadium_names::read_name_references(&save);
+        stadium_index.apply_name_refs(&name_refs);
+    }
+    let stadiums = stadium_index.stadiums;
 
     progress(ParseProgress {
         stage: "competitions".to_owned(),

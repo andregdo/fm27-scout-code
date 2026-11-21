@@ -53,7 +53,7 @@ pub const PARSER_VERSION: &str = concat!(
     "+staff+second-nations+managed-club+build-2494687+build-2503222+squad-slots",
     "+squad-fixtures+club-history-gender+identity-gender+facility-share-tail+staff-job-titles",
     "+build-2505117-finance-tail+player-reputation+club-sponsorships",
-    "+sponsor-record-scan+sponsor-terms"
+    "+sponsor-record-scan+sponsor-terms+stadium-names"
 );
 pub const EARLIEST_YEAR: i32 = 1901;
 pub const LATEST_YEAR: i32 = 2200;

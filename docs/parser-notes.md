@@ -398,6 +398,22 @@ header's club uid need not equal the parent club's uid. On the reference saves a
 team's list matched exactly the players whose `team_id` named that team, and a transfer
 the game completed moved the player from the old list to the new one.
 
+## Stadium names
+
+Only a couple of hundred grounds carry an inline name in the save, almost all of them
+generated or renamed grounds. The game renders the rest from its installed database.
+`shared/stadium-names.csv` holds that database's stadium table (`uid,name`), generated
+from the first language section of `lang_db.dat` by `scripts/build_stadium_names.py`;
+the bundled table has 38,886 rows from the FM27 2700 database.
+
+The save also stores named references in `news`, `play_fixture_manager` and
+`edit_session_man`: `02 | u32 ordinal + 1 | u32 database uid | u32 name length | name`.
+The zero-based stadium row is `ordinal - 1` (the field minus two), and the name is used
+only when it matches the database name for the uid after ignoring case and punctuation.
+This resolves grounds whose save uid differs from the database uid. It cannot recover a
+ground whose reference has been cleared from the news. Unknown names stay `None`; the
+parser does not infer a name from the owning club or the capacity.
+
 ## Staff
 
 Staff records are person objects whose header kind byte is `1`. A header is accepted only

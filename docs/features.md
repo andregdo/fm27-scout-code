@@ -29,8 +29,10 @@
   confirmed on an FM27 sponsorship screen carry a label; the save stores no
   sponsor names.
 - Stadiums: the save's ground table with capacities, pitch dimensions, dates and
-  owner club. The save stores no direct club -> ground pointer, so home-ground
-  use is not derived yet.
+  owner club. Names come from the inline row, the bundled
+  `shared/stadium-names.csv` database table and validated name references in the
+  save; grounds with no stored or database name stay unnamed. The save stores no
+  direct club -> ground pointer, so home-ground use is not derived yet.
 - Club search: full club table with nation, reputation, finance, sponsorship,
   facilities and stadium filters, plus a club profile with squad, finance
   history, sponsorship contracts and owned stadiums.
