@@ -22,7 +22,7 @@ git push --follow-tags
 CI 会运行 `node scripts/version.mjs --check`，确保 `Cargo.toml` 与
 `apps/desktop/package.json` 一致；tag 也必须与 `Cargo.toml` 版本一致。
 
-注意：`crates/fm27-core/src/layout.rs` 的 `PARSER_VERSION` 是独立的解析缓存版本，
+注意：`crates/fm27-core/src/layout/mod.rs` 的 `PARSER_VERSION` 是独立的解析缓存版本，
 只有解析逻辑或缓存数据结构变化时才需要修改；普通发版不要跟着改，否则会让所有
 已解析存档的缓存失效。
 

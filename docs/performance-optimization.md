@@ -295,7 +295,7 @@ let stored_index = if index < PlayerLayout::LEFT_FOOT_INDEX {
 };
 ```
 
-保留 `stored_attribute_index` 给编辑器处理外部动态键。用 `layout_tests` 覆盖全部 52 项和两个脚部字节。
+保留 `stored_attribute_index` 给编辑器处理外部动态键。用 `layout::tests` 覆盖全部 52 项和两个脚部字节。
 
 **现状 B：JSON 反序列化先建 owned-key BTreeMap**
 

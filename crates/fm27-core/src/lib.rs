@@ -17,7 +17,6 @@ pub mod finances;
 pub mod fixtures;
 pub mod injuries;
 pub mod layout;
-mod layout_tests;
 pub mod leagues;
 pub mod managed;
 pub mod metadata;
