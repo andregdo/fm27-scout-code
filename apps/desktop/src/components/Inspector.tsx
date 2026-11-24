@@ -539,7 +539,7 @@ export function Inspector() {
           />
         )}
         {tab === "positions" && <PositionsPanel positions={player.positions} />}
-        {tab === "contract" && <ContractPanel player={player} />}
+        {tab === "contract" && <ContractPanel player={player} gameDate={gameDate} />}
       </div>
     </aside>
   );
@@ -1173,7 +1173,7 @@ function PositionsPanel({ positions }: { positions: Positions }) {
   );
 }
 
-function ContractPanel({ player }: { player: Player }) {
+function ContractPanel({ player, gameDate }: { player: Player; gameDate: string | null }) {
   const { t, locale, currency, formatWage } = useI18n();
   const contract = player.contract;
   const futureTransfers = contract?.future_transfers ?? [];
@@ -1360,15 +1360,23 @@ function ContractPanel({ player }: { player: Player }) {
           </div>
           <div className="space-y-1">
             {contract.chain.map((entry, index) => {
-              const isFuture = futureKeys.has(`${entry.club_uid}:${entry.start}`);
+              const isConfirmedFuture = futureKeys.has(`${entry.club_uid}:${entry.start}`);
+              const isOffer =
+                !isConfirmedFuture &&
+                gameDate != null &&
+                entry.start != null &&
+                entry.start > gameDate &&
+                entry.club_uid !== contract.club_uid;
               return (
                 <div
                   key={index}
                   className={cn(
                     "flex items-center gap-2 rounded-[6px] border px-2 py-1.5",
-                    isFuture
+                    isConfirmedFuture
                       ? "border-[var(--blue-line)] bg-[var(--blue-soft)]"
-                      : "border-[var(--line)]",
+                      : isOffer
+                        ? "border-[var(--gold-line)] bg-[var(--gold-soft)]"
+                        : "border-[var(--line)]",
                   )}
                 >
                   <ChevronRight size={11} className="text-[var(--muted)]" />
@@ -1380,8 +1388,12 @@ function ContractPanel({ player }: { player: Player }) {
                       {entry.start ?? "—"} → {entry.end ?? "—"}
                     </div>
                   </div>
-                  {isFuture ? (
+                  {isConfirmedFuture ? (
                     <Badge tone="blue">{t("inspector.futureBadge")}</Badge>
+                  ) : isOffer ? (
+                    <Badge tone="gold" title={t("inspector.offerBadgeTitle")}>
+                      {t("inspector.offerBadge")}
+                    </Badge>
                   ) : (
                     entry.has_terms && (
                       <Badge tone="outline">{t("inspector.contractBadge")}</Badge>

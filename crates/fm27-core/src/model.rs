@@ -280,7 +280,8 @@ pub struct Contract {
     pub loan_end: Option<String>,
     pub chain: Vec<ContractChainEntry>,
     /// Chain records that start after the save date at a club other than the
-    /// contract in effect. A record at the same club is a renewal, not a move.
+    /// contract in effect and that the transfer manager has agreed. A record at
+    /// the same club is a renewal, not a move.
     #[serde(default)]
     pub future_transfers: Vec<ContractChainEntry>,
 }

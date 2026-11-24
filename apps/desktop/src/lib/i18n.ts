@@ -521,6 +521,8 @@ const en = {
   "inspector.futureTransfer": "Future transfer",
   "inspector.futureBadge": "Future",
   "inspector.futureTransferSummary": "Future transfer: {club} · {date}",
+  "inspector.offerBadge": "Offer",
+  "inspector.offerBadgeTitle": "Future contract stored in the chain, not an agreed transfer",
 
   // Compare dialog
   "compare.title": "Player comparison",
@@ -1723,6 +1725,8 @@ const zhCN: Record<TranslationKey, string> = {
   "inspector.futureTransfer": "未来转会",
   "inspector.futureBadge": "未来",
   "inspector.futureTransferSummary": "未来转会：{club} · {date}",
+  "inspector.offerBadge": "报价",
+  "inspector.offerBadgeTitle": "合同链中的未来合同，尚未确定转会",
 
   "compare.title": "球员对比",
   "compare.moneyballHidden": "数据模式不显示属性对比。",

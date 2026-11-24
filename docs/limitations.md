@@ -40,10 +40,12 @@
   windows, so it no longer depends on the typed array being populated.
 - Contract clauses, loans and contract chains are parsed; a few unobserved
   fallback structures are explicitly left blank.
-- Future transfers come from contract-chain records that start after the save
-  date at another club. The save has no separately decoded confirmation flag and
-  can hold more than one future record, so the app lists every stored future
-  move rather than claiming an exclusive confirmed deal.
+- Future transfers are shown only when the `transfer_man` section holds an offer
+  with state `19` (agreed) for the player and destination club. The section is
+  walked by record marker rather than a documented list header; a record whose
+  player index, teams, kind or state does not validate is skipped. Unconfirmed
+  future chain records remain visible in the contract chain and are labelled as
+  offers.
 - The managed club is read from the first human manager only, and only on the
   verified builds. When the manager is between jobs, or when the summary links
   several clubs and no contract record settles the choice, the club stays unknown

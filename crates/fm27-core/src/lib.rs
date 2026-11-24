@@ -40,6 +40,7 @@ pub mod staff;
 pub mod stats_moneyball;
 pub mod store;
 pub mod suspensions;
+pub mod transfers;
 pub mod youth_level;
 
 pub use club_editor::{

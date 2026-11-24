@@ -93,6 +93,6 @@ pub const PARSER_VERSION: &str = concat!(
     "+staff+second-nations+managed-club+build-2494687+build-2503222+squad-slots",
     "+squad-fixtures+club-history-gender+identity-gender+facility-share-tail+staff-job-titles",
     "+build-2505117-finance-tail+player-reputation+club-sponsorships",
-    "+sponsor-record-scan+sponsor-terms+stadium-names+future-transfers"
+    "+sponsor-record-scan+sponsor-terms+stadium-names+confirmed-future-transfers"
 );
 pub const MISSING_U32: u32 = 0xFFFF_FFFF;

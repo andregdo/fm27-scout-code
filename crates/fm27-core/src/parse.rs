@@ -211,10 +211,18 @@ pub fn parse_save_with_progress(
         clubs: club_lookup,
         clock: reference_date,
     };
+    let agreed_future_clubs = match save.read_section("transfer_man") {
+        Ok(section) => crate::transfers::read_agreed_future_clubs(&section, &record_index, &clubs),
+        Err(error) => {
+            warnings.push(format!("future transfers unavailable: {error}"));
+            HashMap::new()
+        }
+    };
     let contract_decoder = ContractDecoder {
         club_names: &clubs.name_by_uid,
         club_by_team: &clubs.fielding_team_to_club,
         clock: reference_date,
+        agreed_future_clubs: Some(&agreed_future_clubs),
     };
     let managed_club = if crate::layout::is_editable_build(&metadata.build) {
         crate::managed::read_managed_club(&save, &game_db, &clubs, reference_date, &mut warnings)

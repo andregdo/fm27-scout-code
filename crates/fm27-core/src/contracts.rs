@@ -2,7 +2,7 @@
 //! chain records, tails, clauses and loan blocks; unobserved fallback blocks are
 //! deliberately left unsupported rather than guessed.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use chrono::NaiveDate;
 
@@ -75,9 +75,15 @@ pub struct ContractDecoder<'a> {
     pub club_names: &'a HashMap<u32, String>,
     pub club_by_team: &'a HashMap<u32, (u32, u8)>,
     pub clock: NaiveDate,
+    /// Clubs of the future moves the transfer manager has agreed, keyed by
+    /// player index. When absent, the chain is still returned but no future
+    /// record is reported as a future transfer.
+    pub agreed_future_clubs: Option<&'a HashMap<u32, HashSet<u32>>>,
 }
 
 impl ContractDecoder<'_> {
+    /// Decode a player's contract. A future chain record becomes a future
+    /// transfer only when its club is in the player's agreed set.
     pub fn decode(
         &self,
         game_db: &[u8],
@@ -248,16 +254,25 @@ impl ContractDecoder<'_> {
             }
         }
 
-        // Records that start after the save date at another club are the future
-        // moves already stored in the chain. A later record at the same club is an
-        // extension, so it stays out of this list. When no in-effect record names a
-        // club, the player's registered club is the best available comparison.
+        // Records that start after the save date at another club are future
+        // moves stored in the chain; only one the transfer manager has agreed is
+        // reported as a future transfer. A later record at the same club is an
+        // extension, so it stays out of this list. When no in-effect record names
+        // a club, the player's registered club is the best available comparison.
+        let agreed_clubs = self.agreed_future_clubs.and_then(|map| map.get(&pindex));
         let current_club_uid = contract_club_uid.or(player_club_uid);
         let mut future_transfers = records
             .as_deref()
             .unwrap_or(&[])
             .iter()
             .filter(|record| record.start.is_some_and(|start| start > self.clock))
+            .filter(|record| {
+                agreed_clubs.is_some_and(|clubs| {
+                    record
+                        .club_uid
+                        .is_some_and(|club_uid| clubs.contains(&club_uid))
+                })
+            })
             .filter(|record| record.club_uid != current_club_uid)
             .map(|record| ContractChainEntry {
                 club_uid: record.club_uid,
@@ -978,6 +993,7 @@ mod tests {
             club_names: &club_names,
             club_by_team: &club_by_team,
             clock: NaiveDate::from_ymd_opt(2027, 8, 13).unwrap(),
+            agreed_future_clubs: None,
         };
         let record_offset =
             (TAG as i64 - ContractLayout::CHAIN_WINDOW_START_OFFSET as i64) as usize;
@@ -1042,10 +1058,18 @@ mod tests {
             club_names: &club_names,
             club_by_team: &club_by_team,
             clock: NaiveDate::from_ymd_opt(2027, 8, 13).unwrap(),
+            agreed_future_clubs: None,
         };
         let record_offset =
             (TAG as i64 - ContractLayout::CHAIN_WINDOW_START_OFFSET as i64) as usize;
-        let contract = decoder
+        let agreed = HashMap::from([(PINDEX, HashSet::from([FUTURE_CLUB_UID]))]);
+        let agreed_decoder = ContractDecoder {
+            club_names: &club_names,
+            club_by_team: &club_by_team,
+            clock: NaiveDate::from_ymd_opt(2027, 8, 13).unwrap(),
+            agreed_future_clubs: Some(&agreed),
+        };
+        let contract = agreed_decoder
             .decode(&game_db, record_offset, 2000, false, PINDEX, Some(CLUB_UID))
             .expect("contract decodes");
 
@@ -1056,5 +1080,12 @@ mod tests {
         assert_eq!(future.club_name.as_deref(), Some("Future FC"));
         assert_eq!(future.start.as_deref(), Some("2028-07-01"));
         assert_eq!(future.end.as_deref(), Some("2031-06-30"));
+
+        // The same chain record stays an offer when the transfer manager has not
+        // agreed a move to that club.
+        let unconfirmed = decoder
+            .decode(&game_db, record_offset, 2000, false, PINDEX, Some(CLUB_UID))
+            .expect("contract decodes");
+        assert!(unconfirmed.future_transfers.is_empty());
     }
 }

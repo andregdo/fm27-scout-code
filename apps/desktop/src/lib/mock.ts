@@ -205,6 +205,18 @@ function buildPlayer(index: number): Player {
           has_terms: true,
         }
       : null;
+  const futureOffer =
+    index === 0
+      ? {
+          club_uid: 1150,
+          club_name: "Napoli",
+          team_id: 901,
+          wage: 100_000,
+          start: "2027-07-01",
+          end: "2030-06-30",
+          has_terms: true,
+        }
+      : null;
   return {
     uid: 100000 + index,
     unique_id: generated ? 2_002_000_000 + index : 653054 + index,
@@ -350,6 +362,7 @@ function buildPlayer(index: number): Player {
           has_terms: true,
         },
         ...(futureTransfer ? [futureTransfer] : []),
+        ...(futureOffer ? [futureOffer] : []),
       ],
       future_transfers: futureTransfer ? [futureTransfer] : [],
     },
