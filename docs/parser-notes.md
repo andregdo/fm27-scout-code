@@ -381,6 +381,15 @@ holds only `0`, `1..=99` or `255`; assigned numbers are unique within a team. Th
 own completed transfer set the departing player's byte to `255`, so the transfer editor
 clears it in the same write and lets the new club assign a number after loading.
 
+Chain records that start after the save date and name another club are exposed as
+`future_transfers` on the contract. A later record at the club currently in effect is a
+renewal and is not listed. The cache mirrors the earliest one into the players table
+(`future_move_count`, `future_move_club_uid`, `future_move_club_name`,
+`future_move_date`) so the player list can show it without opening the profile. The
+chain can hold more than one future record, so the list is "future contracts stored in
+the save", not a separate confirmed-transfer flag; the game's own confirmation state is
+not decoded.
+
 ## Team player lists
 
 Each team record stores a counted array of `pindex + 1` values: the team id minus one at

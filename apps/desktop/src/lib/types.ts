@@ -228,6 +228,8 @@ export interface Contract {
   loan_start: string | null;
   loan_end: string | null;
   chain: ContractChainEntry[];
+  /** Chain records that start after the save date at a different club. */
+  future_transfers: ContractChainEntry[];
 }
 
 export interface Reputation {
@@ -343,6 +345,12 @@ export interface PlayerRow {
   on_loan: boolean | null;
   transfer_listed: boolean;
   loan_listed: boolean;
+  /** Number of future moves in the contract chain. */
+  future_move_count: number;
+  /** Destination of the earliest future move, when the chain stores one. */
+  future_move_club_uid: number | null;
+  future_move_club_name: string | null;
+  future_move_date: string | null;
   traits: Trait[];
   best_role_id: string | null;
   best_role_name: string | null;

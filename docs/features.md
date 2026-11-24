@@ -63,6 +63,10 @@
 ## Desktop UI
 
 - Filters, multi-column sorting and player profiles.
+- Stored future transfers: the player row shows the destination club and start
+  date of the earliest future move, and the profile header and contract tab list
+  every future move in the contract chain. Later contracts at the current club
+  are renewals and stay in the chain only.
 - Separate staff workspace with club/job/nation filters, attribute and role-suitability
   rules, profile attributes, role scores, contract terms and sortable role columns.
   Staff are read-only.

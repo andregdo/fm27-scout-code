@@ -75,6 +75,11 @@ CREATE TABLE IF NOT EXISTS players (
   on_loan         INTEGER,
   transfer_listed INTEGER NOT NULL DEFAULT 0,
   loan_listed     INTEGER NOT NULL DEFAULT 0,
+  -- Earliest future move stored in the contract chain, plus the total count.
+  future_move_count INTEGER NOT NULL DEFAULT 0,
+  future_move_club_uid INTEGER,
+  future_move_club_name TEXT,
+  future_move_date TEXT,
   data_json       TEXT NOT NULL,
   PRIMARY KEY (save_id, uid),
   FOREIGN KEY (save_id) REFERENCES saves(id) ON DELETE CASCADE
@@ -93,6 +98,8 @@ CREATE INDEX IF NOT EXISTS players_injury ON players(save_id, injury_status);
 CREATE INDEX IF NOT EXISTS players_role_score ON players(save_id, best_role_score);
 CREATE INDEX IF NOT EXISTS players_transfer_listed ON players(save_id, transfer_listed);
 CREATE INDEX IF NOT EXISTS players_loan_listed ON players(save_id, loan_listed);
+CREATE INDEX IF NOT EXISTS players_future_move
+  ON players(save_id, future_move_count, future_move_date);
 
 CREATE TABLE IF NOT EXISTS player_season_stats (
   save_id         INTEGER NOT NULL,

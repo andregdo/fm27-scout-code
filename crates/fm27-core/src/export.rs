@@ -215,6 +215,8 @@ fn csv_header() -> Vec<String> {
         "on_loan".to_owned(),
         "transfer_listed".to_owned(),
         "loan_listed".to_owned(),
+        "future_move_club".to_owned(),
+        "future_move_date".to_owned(),
     ];
     for key in crate::layout::ATTRIBUTE_KEYS {
         header.push(key.to_owned());
@@ -266,6 +268,8 @@ fn csv_record(row: &PlayerRow) -> Vec<String> {
             .to_owned(),
         if row.transfer_listed { "yes" } else { "no" }.to_owned(),
         if row.loan_listed { "yes" } else { "no" }.to_owned(),
+        row.future_move_club_name.clone().unwrap_or_default(),
+        row.future_move_date.clone().unwrap_or_default(),
     ];
     for value in row.attributes.values {
         record.push(value.to_string());

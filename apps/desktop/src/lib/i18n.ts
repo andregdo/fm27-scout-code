@@ -518,6 +518,9 @@ const en = {
   "inspector.clauseIncluded": "Included",
   "inspector.chain": "Contract chain",
   "inspector.contractBadge": "Contract",
+  "inspector.futureTransfer": "Future transfer",
+  "inspector.futureBadge": "Future",
+  "inspector.futureTransferSummary": "Future transfer: {club} · {date}",
 
   // Compare dialog
   "compare.title": "Player comparison",
@@ -1717,6 +1720,9 @@ const zhCN: Record<TranslationKey, string> = {
   "inspector.clauseIncluded": "已包含",
   "inspector.chain": "合同链",
   "inspector.contractBadge": "合同",
+  "inspector.futureTransfer": "未来转会",
+  "inspector.futureBadge": "未来",
+  "inspector.futureTransferSummary": "未来转会：{club} · {date}",
 
   "compare.title": "球员对比",
   "compare.moneyballHidden": "数据模式不显示属性对比。",

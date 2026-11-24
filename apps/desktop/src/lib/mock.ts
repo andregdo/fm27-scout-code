@@ -193,6 +193,18 @@ function buildPlayer(index: number): Player {
   const wage = index === 0 ? 106965 : Math.round(500 + random() * 80000);
   const value = index === 0 ? 4408650 : Math.round(10000 + random() * 60000000);
   const generated = index > 0 && index % 11 === 0;
+  const futureTransfer =
+    index === 0
+      ? {
+          club_uid: 1107,
+          club_name: "Inter",
+          team_id: 900,
+          wage: 120_000,
+          start: "2027-07-01",
+          end: "2030-06-30",
+          has_terms: true,
+        }
+      : null;
   return {
     uid: 100000 + index,
     unique_id: generated ? 2_002_000_000 + index : 653054 + index,
@@ -337,7 +349,9 @@ function buildPlayer(index: number): Player {
           end: contractEnd,
           has_terms: true,
         },
+        ...(futureTransfer ? [futureTransfer] : []),
       ],
+      future_transfers: futureTransfer ? [futureTransfer] : [],
     },
   } as Player;
 }
@@ -483,6 +497,8 @@ export function mockTransferPlan(uid: number, toClubUid: number): TransferChange
 
 export function mockPlayerRow(player: Player): PlayerRow {
   const positionsText = player.natural_positions.join(" / ");
+  const futureTransfers = player.contract?.future_transfers ?? [];
+  const futureTransfer = futureTransfers[0] ?? null;
   return {
     uid: player.uid,
     generated: player.generated,
@@ -517,6 +533,10 @@ export function mockPlayerRow(player: Player): PlayerRow {
     on_loan: player.on_loan,
     transfer_listed: player.transfer_listed,
     loan_listed: player.loan_listed,
+    future_move_count: futureTransfers.length,
+    future_move_club_uid: futureTransfer?.club_uid ?? null,
+    future_move_club_name: futureTransfer?.club_name ?? null,
+    future_move_date: futureTransfer?.start ?? null,
     traits: player.traits,
     best_role_id: player.best_role?.id ?? null,
     best_role_name: player.best_role?.name ?? null,

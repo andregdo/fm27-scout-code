@@ -248,6 +248,42 @@ impl ContractDecoder<'_> {
             }
         }
 
+        // Records that start after the save date at another club are the future
+        // moves already stored in the chain. A later record at the same club is an
+        // extension, so it stays out of this list. When no in-effect record names a
+        // club, the player's registered club is the best available comparison.
+        let current_club_uid = contract_club_uid.or(player_club_uid);
+        let mut future_transfers = records
+            .as_deref()
+            .unwrap_or(&[])
+            .iter()
+            .filter(|record| record.start.is_some_and(|start| start > self.clock))
+            .filter(|record| record.club_uid != current_club_uid)
+            .map(|record| ContractChainEntry {
+                club_uid: record.club_uid,
+                club_name: record.club_name.clone(),
+                team_id: record.team_id,
+                wage: record.wage,
+                start: record.start.map(|date| date.to_string()),
+                end: record.end.map(|date| date.to_string()),
+                has_terms: record.has_terms,
+            })
+            .collect::<Vec<_>>();
+        future_transfers.sort_by(|left, right| {
+            left.start
+                .as_deref()
+                .unwrap_or("")
+                .cmp(right.start.as_deref().unwrap_or(""))
+                .then_with(|| {
+                    left.club_name
+                        .as_deref()
+                        .unwrap_or("")
+                        .cmp(right.club_name.as_deref().unwrap_or(""))
+                })
+        });
+        future_transfers
+            .dedup_by(|left, right| left.club_uid == right.club_uid && left.start == right.start);
+
         // A record without terms still needs a start for display; the fallback dates are
         // the only source when no tail exists.
         let _ = in_effect_has_terms;
@@ -270,6 +306,7 @@ impl ContractDecoder<'_> {
             loan_start,
             loan_end,
             chain,
+            future_transfers,
         })
     }
 
@@ -853,6 +890,43 @@ mod tests {
     const PINDEX: u32 = 41;
     const CLUB_UID: u32 = 99;
     const TEAM_ID: u32 = 7;
+    const FUTURE_CLUB_UID: u32 = 100;
+    const FUTURE_TEAM_ID: u32 = 8;
+    const FUTURE_TAG: usize = 1200;
+    const FUTURE_TAIL: usize = FUTURE_TAG - ContractLayout::TAIL_BASE_OFFSET;
+    const RENEWAL_TAG: usize = 1400;
+    const RENEWAL_TAIL: usize = RENEWAL_TAG - ContractLayout::TAIL_BASE_OFFSET;
+
+    fn write_chain_record(
+        bytes: &mut [u8],
+        tag: usize,
+        tail: usize,
+        team_id: u32,
+        wage: u32,
+        start: NaiveDate,
+        end: NaiveDate,
+    ) {
+        bytes[tag..tag + ContractLayout::TAG.len()].copy_from_slice(ContractLayout::TAG);
+        bytes[tag + ContractLayout::SELECTOR_OFFSET..tag + ContractLayout::SELECTOR_OFFSET + 4]
+            .copy_from_slice(&(PINDEX + 1).to_le_bytes());
+        bytes[tag + ContractLayout::TEAM_ID_OFFSET..tag + ContractLayout::TEAM_ID_OFFSET + 4]
+            .copy_from_slice(&team_id.to_le_bytes());
+        bytes[tag + ContractLayout::WAGE_OFFSET..tag + ContractLayout::WAGE_OFFSET + 4]
+            .copy_from_slice(&wage.to_le_bytes());
+        let start_offset =
+            positive_offset(tag, ContractLayout::START_OFFSET).expect("start offset");
+        write_date(bytes, start_offset, start);
+        bytes[tail + ContractLayout::TAIL_SENTINEL_BYTE_OFFSET] =
+            ContractLayout::TAIL_SENTINEL_BYTE_VALUE;
+        bytes[tail + ContractLayout::TAIL_SENTINEL_WORD_OFFSET
+            ..tail + ContractLayout::TAIL_SENTINEL_WORD_OFFSET + 4]
+            .copy_from_slice(&ContractLayout::TAIL_SENTINEL_WORD_VALUE.to_le_bytes());
+        bytes[tail + ContractLayout::TAIL_EVENT_COUNT_OFFSET
+            ..tail + ContractLayout::TAIL_EVENT_COUNT_OFFSET + 4]
+            .copy_from_slice(&0u32.to_le_bytes());
+        write_date(bytes, tail + ContractLayout::TAIL_END_OFFSET, end);
+        bytes[tail + ContractLayout::TAIL_SQUAD_STATUS_OFFSET] = 4;
+    }
 
     fn write_date(bytes: &mut [u8], offset: usize, date: NaiveDate) {
         let encoded = encode_date(date, 0).expect("encode date");
@@ -933,5 +1007,54 @@ mod tests {
         let both = decode_synthetic(3, 0);
         assert!(both.transfer_listed);
         assert!(both.loan_listed);
+    }
+
+    #[test]
+    fn future_records_at_another_club_are_future_transfers() {
+        let mut game_db = synthetic_game_db(0, 0);
+        write_chain_record(
+            &mut game_db,
+            FUTURE_TAG,
+            FUTURE_TAIL,
+            FUTURE_TEAM_ID,
+            222_000,
+            NaiveDate::from_ymd_opt(2028, 7, 1).unwrap(),
+            NaiveDate::from_ymd_opt(2031, 6, 30).unwrap(),
+        );
+        write_chain_record(
+            &mut game_db,
+            RENEWAL_TAG,
+            RENEWAL_TAIL,
+            TEAM_ID,
+            150_000,
+            NaiveDate::from_ymd_opt(2028, 7, 1).unwrap(),
+            NaiveDate::from_ymd_opt(2030, 6, 30).unwrap(),
+        );
+        let club_names = HashMap::from([
+            (CLUB_UID, "Test FC".to_owned()),
+            (FUTURE_CLUB_UID, "Future FC".to_owned()),
+        ]);
+        let club_by_team = HashMap::from([
+            (TEAM_ID, (CLUB_UID, 0u8)),
+            (FUTURE_TEAM_ID, (FUTURE_CLUB_UID, 0u8)),
+        ]);
+        let decoder = ContractDecoder {
+            club_names: &club_names,
+            club_by_team: &club_by_team,
+            clock: NaiveDate::from_ymd_opt(2027, 8, 13).unwrap(),
+        };
+        let record_offset =
+            (TAG as i64 - ContractLayout::CHAIN_WINDOW_START_OFFSET as i64) as usize;
+        let contract = decoder
+            .decode(&game_db, record_offset, 2000, false, PINDEX, Some(CLUB_UID))
+            .expect("contract decodes");
+
+        assert_eq!(contract.club_uid, Some(CLUB_UID));
+        assert_eq!(contract.future_transfers.len(), 1);
+        let future = &contract.future_transfers[0];
+        assert_eq!(future.club_uid, Some(FUTURE_CLUB_UID));
+        assert_eq!(future.club_name.as_deref(), Some("Future FC"));
+        assert_eq!(future.start.as_deref(), Some("2028-07-01"));
+        assert_eq!(future.end.as_deref(), Some("2031-06-30"));
     }
 }
