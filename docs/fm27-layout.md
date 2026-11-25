@@ -1,9 +1,9 @@
 # FM27 layout quick reference
 
-Builds `27.0.0+2486695`, `27.0.0+2493426`, `27.0.1+2494687`, `27.0.1+2503222`
-and `27.1.0+2505117`, `game_db` schema 4000. All five builds share the layout
-below except for the club full-finance closing block described under
-[Clubs](#clubs). Offsets are decimal bytes unless noted.
+Builds `27.0.0+2486695`, `27.0.0+2493426`, `27.0.1+2494687`, `27.0.1+2503222`,
+`27.1.0+2505117` and `27.1.1+2511875`, `game_db` schema 4000. All six builds
+share the layout below except for the club full-finance closing block described
+under [Clubs](#clubs). Offsets are decimal bytes unless noted.
 
 ## Save container
 
@@ -78,7 +78,7 @@ after_finance[5..7].count_bytes = 2 (FM26: 1)
 ```
 
 The full-finance chain closes with a fixed block. It is 67 bytes through
-`27.0.1+2503222` and 72 bytes on `27.1.0+2505117`:
+`27.0.1+2503222` and 72 bytes on `27.1.0`/`27.1.1`:
 
 ```text
 +0..21   unchanged block fields
@@ -140,7 +140,7 @@ Prefix, with offsets from the start of the list:
 ```
 
 The counted entries are followed by a fixed suffix. The suffix is 68 bytes
-through `27.0.1+2503222` and 73 bytes on `27.1.0+2505117`. The extra five bytes
+through `27.0.1+2503222` and 73 bytes on `27.1.0`/`27.1.1`. The extra five bytes
 are the same status byte and game date inserted at suffix offset 22 that the
 full-finance closing block gained; the later fixed bytes, dates and the primary
 sponsor count shift by five. The primary sponsor count is the last suffix byte.
@@ -176,9 +176,11 @@ club's value when the deal was signed.
 
 Coverage now follows the club record rather than the finance series: 167 clubs
 and 1,094 rows on the `27.0.0` reference save, 318 clubs and 1,627 rows on
-`27.0.1`, and 318 clubs and 1,625 rows on `27.1.0`. One list on each of the
-27.0.1/27.1.0 saves is rejected because a row stores sentinel-like values near
-`u32::MAX`.
+`27.0.1`, and 318 clubs and 1,625 rows on the 2029-04-21 `27.1.0` save. The
+later 2030-04-05 saves of that career hold 378 clubs and 1,832 rows, and the
+`27.1.0` and `27.1.1` parses of that date are identical. One list on each of the
+27.0.1/27.1.0/27.1.1 saves is rejected because a row stores sentinel-like
+values near `u32::MAX`.
 
 The rows store contract terms and a raw type code, not a sponsor name. The
 game's sponsorship screen confirmed codes 1 Main Kit, 3 and 23 Stadium, 4
@@ -186,7 +188,7 @@ General, 5 Individual TV Deal, 7 Club Membership, 8 Away Kit, 9 Additional Kit
 Sponsor, 11 Back of Shirt, 12 Shorts, 13 Training Kit, 14 Youth Team, 15
 Training Ground, 16 Continental Competition, 19 Shirt Sleeve and 22 Kit
 Manufacturer on builds 27.0.0 and 27.0.1. Codes 2, 6, 17 and 18 remain unnamed,
-and 27.1.0 keeps raw codes until its screen is checked.
+and 27.1.0/27.1.1 keep raw codes until their screen is checked.
 
 ### Club facility rows
 
@@ -438,8 +440,8 @@ boundary. Rust implementation: `crates/fm27-core/src/fixtures.rs`.
 ## Staff objects
 
 Staff objects use the person-header shape with kind byte `1` at header +12. Verified on
-`27.0.0+2486695`, `27.0.0+2493426`, `27.0.1+2494687`, `27.0.1+2503222` and
-`27.1.0+2505117`:
+`27.0.0+2486695`, `27.0.0+2493426`, `27.0.1+2494687`, `27.0.1+2503222`,
+`27.1.0+2505117` and `27.1.1+2511875`:
 
 ```text
 header             pindex u32

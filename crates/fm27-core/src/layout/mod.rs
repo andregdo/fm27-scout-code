@@ -44,7 +44,7 @@ pub use staff::{
 
 pub const GAME: &str = "FM27";
 /// Latest FM27 build whose save layout has been verified.
-pub const BUILD: &str = "27.1.0+2505117";
+pub const BUILD: &str = "27.1.1+2511875";
 /// Builds that share the verified FM27 save layout. Editing is limited to these
 /// exact builds so a layout change fails closed instead of guessing offsets.
 pub const EDITABLE_BUILDS: &[&str] = &[
@@ -52,6 +52,7 @@ pub const EDITABLE_BUILDS: &[&str] = &[
     "27.0.0+2493426",
     "27.0.1+2494687",
     "27.0.1+2503222",
+    "27.1.0+2505117",
     BUILD,
 ];
 pub const GAME_DB_SCHEMA: u32 = 4000;
@@ -84,15 +85,17 @@ pub fn editable_builds() -> String {
 /// at both the 67-byte and 72-byte sizes, before club sponsorship contracts
 /// were decoded from the primary sponsor list after each finance chain, and
 /// before that list was scanned across every club record and its stored terms
-/// were decoded. The current cache also carries each player's home, current and
-/// world reputation for table display and filtering.
+/// were decoded, and before build 27.1.1+2511875 was verified and the managed
+/// club was read for it, and before future transfers were confirmed against
+/// agreed transfer offers. The current cache also carries each player's home,
+/// current and world reputation for table display and filtering.
 pub const PARSER_VERSION: &str = concat!(
-    "1.2.0",
+    "1.3.0",
     "+nation-names+listing+listing-flags+injury-windows+club-finance+stadiums",
     "+club-facilities+youth-level-edt+competition-names+club-leagues+season-stats+unique-ids",
     "+staff+second-nations+managed-club+build-2494687+build-2503222+squad-slots",
     "+squad-fixtures+club-history-gender+identity-gender+facility-share-tail+staff-job-titles",
     "+build-2505117-finance-tail+player-reputation+club-sponsorships",
-    "+sponsor-record-scan+sponsor-terms+stadium-names+confirmed-future-transfers"
+    "+sponsor-record-scan+sponsor-terms+stadium-names+build-2511875+confirmed-future-transfers"
 );
 pub const MISSING_U32: u32 = 0xFFFF_FFFF;

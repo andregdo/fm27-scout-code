@@ -16,6 +16,7 @@ describe("sponsorshipKindLabel", () => {
 
   it("keeps raw codes on unconfirmed builds and unnamed kinds", () => {
     expect(sponsorshipKindLabel(22, "27.1.0+2505117", "en")).toBeNull();
+    expect(sponsorshipKindLabel(22, "27.1.1+2511875", "en")).toBeNull();
     expect(sponsorshipKindLabel(2, "27.0.0+2486695", "en")).toBeNull();
     expect(sponsorshipKindLabel(18, "27.0.1+2503222", "en")).toBeNull();
   });

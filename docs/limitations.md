@@ -22,9 +22,9 @@
 ## Known limitations
 
 - Builds `27.0.0+2486695`, `27.0.0+2493426`, `27.0.1+2494687`,
-  `27.0.1+2503222` and `27.1.0+2505117` have been fully verified; other FM27
-  builds are read in degraded mode with a warning, and missing fields are never
-  guessed. Editing is limited to the verified builds.
+  `27.0.1+2503222`, `27.1.0+2505117` and `27.1.1+2511875` have been fully
+  verified; other FM27 builds are read in degraded mode with a warning, and
+  missing fields are never guessed. Editing is limited to the verified builds.
 - Club leagues are resolved from the competition entries in a full club record. The
   current resolver covers the top divisions of England, Italy, Spain, Germany,
   France, the Netherlands and Portugal; lower divisions and other nations stay
@@ -66,12 +66,13 @@
   profile, squad and owned stadiums but no finance series or facility ratings.
 - Sponsorship lists are stored in the club record and are read for every club,
   not only those with a finance series: 167 clubs on the `27.0.0` reference save
-  and 318 on `27.0.1`/`27.1.0`. Clubs outside those lists store none; the save
-  does not cover all 26,000 clubs.
+  and 318 on `27.0.1`/`27.1.0`. The later 2030-04-05 saves of the same career
+  store 378 lists on both `27.1.0` and `27.1.1`. Clubs outside those lists store
+  none; the save does not cover all 26,000 clubs.
 - The save stores no sponsor name, only a raw type code and contract terms.
   Type labels are confirmed against the game's sponsorship screen on FM27
-  `27.0.0` and `27.0.1`; `27.1.0` shows raw codes, and codes 2, 6, 17 and 18
-  stay numeric on every build.
+  `27.0.0` and `27.0.1`; `27.1.0` and `27.1.1` show raw codes, and codes 2, 6,
+  17 and 18 stay numeric on every build.
 - A sponsor list whose prefix is structurally owned but whose rows fail the
   checks is skipped as a whole and reported in the parse warning. Expired
   contracts keep their stored annual value and are not current income. A running

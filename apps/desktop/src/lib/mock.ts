@@ -403,7 +403,7 @@ export const MOCK_SUMMARY: SaveSummary = {
   fingerprint: "demo",
   save_name: "BB KING - Casciavit",
   game: "FM27",
-  build: "27.1.0+2505117",
+  build: "27.1.1+2511875",
   game_date: "2026-07-13",
   db_version: "27.0.0+0",
   section_count: 75,

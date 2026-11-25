@@ -80,9 +80,10 @@ const AFTER_NAMES: [RecordStep; 2] = [
 ];
 const BASE_FINANCE_BYTES: usize = 45;
 /// The full-finance chain closes with a fixed block whose size grew from 67 to
-/// 72 bytes in FM27 build 27.1.0+2505117: the extra five bytes are a one-byte
-/// status followed by a game date at offset 22 of that block. Both sizes are
-/// accepted; the table walk keeps the one that lands on the row's own footer.
+/// 72 bytes in FM27 build 27.1.0+2505117 and stayed 72 bytes on 27.1.1: the
+/// extra five bytes are a one-byte status followed by a game date at offset 22
+/// of that block. Both sizes are accepted; the table walk keeps the one that
+/// lands on the row's own footer.
 const FULL_FINANCE_TAIL_BYTES: [usize; 2] = [67, 72];
 const FULL_FINANCE_LEADING: [RecordStep; 18] = [
     RecordStep {

@@ -10,14 +10,16 @@ fn editing_accepts_only_verified_builds() {
     assert!(is_editable_build("27.0.1+2494687"));
     assert!(is_editable_build("27.0.1+2503222"));
     assert!(is_editable_build("27.1.0+2505117"));
+    assert!(is_editable_build("27.1.1+2511875"));
     assert!(!is_editable_build("27.0.0+9999999"));
     assert!(!is_editable_build("27.0.1+2493426"));
     assert!(!is_editable_build("27.0.1+2494688"));
     assert!(!is_editable_build("27.0.1+2503223"));
     assert!(!is_editable_build("27.1.0+2505118"));
+    assert!(!is_editable_build("27.1.1+2511876"));
     assert_eq!(
         editable_builds(),
-        "27.0.0+2486695, 27.0.0+2493426, 27.0.1+2494687, 27.0.1+2503222, 27.1.0+2505117"
+        "27.0.0+2486695, 27.0.0+2493426, 27.0.1+2494687, 27.0.1+2503222, 27.1.0+2505117, 27.1.1+2511875"
     );
 }
 

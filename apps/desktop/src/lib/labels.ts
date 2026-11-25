@@ -144,8 +144,9 @@ export function facilityRatingLabel(
 
 /**
  * Sponsorship type labels confirmed against the game's own sponsorship screen
- * on FM27 27.0.0 and 27.0.1. Build 27.1.0 keeps the raw code until its screen
- * is checked; unnamed codes 2, 6, 17 and 18 stay numeric on every build.
+ * on FM27 27.0.0 and 27.0.1. Builds 27.1.0 and 27.1.1 keep the raw code until
+ * their screen is checked; unnamed codes 2, 6, 17 and 18 stay numeric on every
+ * build.
  */
 const SPONSORSHIP_KIND_KEYS: Record<number, TranslationKey> = {
   1: "clubs.sponsorship.kind.mainKit",

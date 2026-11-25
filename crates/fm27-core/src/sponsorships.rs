@@ -6,8 +6,8 @@
 //! so the reader scans the whole club record rather than only the chain end.
 //! Missing, truncated or invalid prefix data yields no list; later
 //! sponsor-shaped bytes are never a fallback. The two known suffix shapes cover
-//! the FM27 builds through 27.0.1 and build 27.1.0, whose closing block grew by
-//! five bytes.
+//! the FM27 builds through 27.0.1 and builds 27.1.0/27.1.1, whose closing block
+//! grew by five bytes.
 
 use chrono::{Datelike, Days, NaiveDate};
 

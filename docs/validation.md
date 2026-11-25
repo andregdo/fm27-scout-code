@@ -329,3 +329,29 @@ one in-game day apart (2029-04-20 and 2029-04-21):
   verified their output files.
 - The managed club resolves to A.C. Milan with manager `AP King` on the new
   build.
+
+Build `27.1.1+2511875` was verified against `27.1.0+2505117` on the same career
+at the same in-game date (2030-04-05), one save written by each build:
+
+- Club, staff, sponsorship and competition exports were byte-identical: 26,127
+  clubs with monthly finances and stadiums, 9,007 staff rows, 1,832 sponsorship
+  rows across 378 valid lists (one rejected), and 2,056 competitions with 6,137
+  stages.
+- All 59,590 shared player records matched on static fields. The only
+  differences were mutable in-game values: 18,967 transfer values, 447
+  transfer-value states, 53 condition values, 26 match-sharpness values and 9
+  contract-clause amounts.
+- The player count fell by one from 59,591, and `players_with_person` stayed at
+  59,578: one markerless record disappeared and an existing markerless record
+  (`uid` 2002119311) gained its person header (Cavaghn Magri, Unique ID
+  2002119312). This is the same regeneration consolidation seen between earlier
+  builds, not a record-shape change.
+- All 189,344 season-stat rows matched by identity and value. The cached club,
+  finance, sponsorship, stadium, competition, team-fixture and staff tables were
+  identical; the contract table differed only in eight clause amounts and the
+  regenerated player's key.
+- `editor_real_save` (CA/PA, attributes, personality, traits, wage and contract
+  end), the club-edit real-save test and the transfer real-save test passed
+  against the new build, with every output re-parsed and field-verified.
+- The managed club resolves to A.C. Milan with manager `AP King` on the new
+  build.
