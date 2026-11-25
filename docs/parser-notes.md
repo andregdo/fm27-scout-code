@@ -381,6 +381,20 @@ holds only `0`, `1..=99` or `255`; assigned numbers are unique within a team. Th
 own completed transfer set the departing player's byte to `255`, so the transfer editor
 clears it in the same write and lets the new club assign a number after loading.
 
+Chain records that start after the save date and name another club are candidate future
+moves. The parser reports one as `future_transfers` only when the `transfer_man` section
+holds an offer for that player with the destination club and state `19` (agreed). Offers
+still waiting on a club (state `0`), on the player (state `8`), rejected or withdrawn
+offers (other observed states, including `15`), and moves the game has already made
+(state `20`) do not confirm a future transfer. A later record at the club currently in
+effect is a renewal and is not listed. The cache mirrors the earliest confirmed move into
+the players table (`future_move_count`, `future_move_club_uid`,
+`future_move_club_name`, `future_move_date`) so the player list can show it without
+opening the profile. The `transfer_man` reader walks the section for the offer marker and
+accepts a record only when the player index, both team ids, the offer kind and the state
+all validate; it does not parse the section's list header. The contract tab still shows
+unconfirmed future records in the chain, labelled as offers.
+
 ## Team player lists
 
 Each team record stores a counted array of `pindex + 1` values: the team id minus one at

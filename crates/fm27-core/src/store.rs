@@ -98,7 +98,9 @@ const PLAYER_ROWS_SELECT: &str =
             p.best_role_score, p.best_role_position, p.injury_status, p.injury_until,
             p.recent_injury, p.suspension_count, p.transfer_listed, p.loan_listed,
             p.unique_id, p.team_id, p.team_slot,
-            p.reputation_home, p.reputation_current, p.reputation_world
+            p.reputation_home, p.reputation_current, p.reputation_world,
+            p.future_move_count, p.future_move_club_uid, p.future_move_club_name,
+            p.future_move_date
      FROM players p
      LEFT JOIN contracts c ON c.save_id = p.save_id AND c.player_uid = p.uid";
 
@@ -359,6 +361,12 @@ pub struct PlayerRow {
     pub on_loan: Option<bool>,
     pub transfer_listed: bool,
     pub loan_listed: bool,
+    /// Number of future moves in the contract chain, with the earliest one's
+    /// destination and start date for the list view.
+    pub future_move_count: u32,
+    pub future_move_club_uid: Option<u32>,
+    pub future_move_club_name: Option<String>,
+    pub future_move_date: Option<String>,
     pub traits: Vec<Trait>,
     pub best_role_id: Option<String>,
     pub best_role_name: Option<String>,
@@ -856,10 +864,13 @@ impl Store {
                   best_role_position, injury_status, injury_until, recent_injury,
                   suspension_count, injuries_json, suspensions_json, contract_end, wage, on_loan,
                   transfer_listed, loan_listed, league_competition_id, league_name, team_id,
-                  team_slot, reputation_home, reputation_current, reputation_world, data_json)
+                  team_slot, reputation_home, reputation_current, reputation_world, data_json,
+                  future_move_count, future_move_club_uid, future_move_club_name,
+                  future_move_date)
                  VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16,?17,?18,?19,
                          ?20,?21,?22,?23,?24,?25,?26,?27,?28,?29,?30,?31,?32,?33,?34,?35,?36,
-                         ?37,?38,?39,?40,?41,?42,?43,?44,?45,?46,?47,?48,?49,?50,?51)",
+                         ?37,?38,?39,?40,?41,?42,?43,?44,?45,?46,?47,?48,?49,?50,?51,?52,?53,
+                         ?54,?55)",
             )?;
             let mut snapshot_stmt = transaction.prepare(
                 "INSERT INTO player_snapshots
@@ -895,6 +906,10 @@ impl Store {
                 let contract_end = contract.and_then(|value| value.end.clone());
                 let wage = contract.and_then(|value| value.wage);
                 let on_loan = contract.and_then(|value| value.on_loan);
+                let future_transfers = contract
+                    .map(|value| value.future_transfers.as_slice())
+                    .unwrap_or(&[]);
+                let future_move = future_transfers.first();
                 let injury_until = crate::injuries::injury_until(&player.injuries, clock);
                 let recent_injury = crate::injuries::recent_injury_date(&player.injuries);
                 let injury_status = if injury_until.is_some() {
@@ -959,6 +974,10 @@ impl Store {
                     player.reputation.current,
                     player.reputation.world,
                     serde_json::to_string(player)?,
+                    future_transfers.len() as i64,
+                    future_move.and_then(|entry| entry.club_uid),
+                    future_move.and_then(|entry| entry.club_name.clone()),
+                    future_move.and_then(|entry| entry.start.clone()),
                 ])?;
 
                 if let Some(game_date) = parsed.summary.game_date.as_deref() {
@@ -3835,6 +3854,10 @@ fn migrate(conn: &Connection) -> Result<()> {
         ),
         ("players", "transfer_listed", "INTEGER NOT NULL DEFAULT 0"),
         ("players", "loan_listed", "INTEGER NOT NULL DEFAULT 0"),
+        ("players", "future_move_count", "INTEGER NOT NULL DEFAULT 0"),
+        ("players", "future_move_club_uid", "INTEGER"),
+        ("players", "future_move_club_name", "TEXT"),
+        ("players", "future_move_date", "TEXT"),
         ("clubs", "nation_name", "TEXT"),
         ("clubs", "league_competition_id", "INTEGER"),
         ("clubs", "league_name", "TEXT"),
@@ -3888,6 +3911,13 @@ fn migrate(conn: &Connection) -> Result<()> {
          DROP INDEX IF EXISTS club_finances_club;
          DROP TABLE IF EXISTS snapshots;",
     )?;
+    // A brand-new cache has no players table yet; SCHEMA creates the index there.
+    if table_exists(conn, "players")? {
+        conn.execute_batch(
+            "CREATE INDEX IF NOT EXISTS players_future_move
+               ON players(save_id, future_move_count, future_move_date);",
+        )?;
+    }
     Ok(())
 }
 
@@ -3963,6 +3993,10 @@ fn map_player_row(row: &Row<'_>, include_hidden: bool) -> rusqlite::Result<Playe
         suspension_count: row.get(33)?,
         transfer_listed: row.get(34)?,
         loan_listed: row.get(35)?,
+        future_move_count: row.get::<_, i64>(42)? as u32,
+        future_move_club_uid: row.get(43)?,
+        future_move_club_name: row.get(44)?,
+        future_move_date: row.get(45)?,
     };
     if !include_hidden {
         redact_attributes(&mut player.attributes);
@@ -5053,6 +5087,41 @@ mod tests {
         let options = store.filter_options(1).expect("filter options");
         assert_eq!(options.min_reputation, Some(10));
         assert_eq!(options.max_reputation, Some(9000));
+    }
+
+    #[test]
+    fn reads_future_move_columns_into_player_rows() {
+        let store = Store::open_in_memory().expect("store");
+        store
+            .conn
+            .execute_batch(
+                "INSERT INTO saves
+                   (id, path, file_name, file_size, mtime_ns, fingerprint, game, build,
+                    parser_version, parsed_at)
+                 VALUES (1, '/tmp/test.fm', 'test.fm', 1, 1, 'fp', 'FM27', '27.0.0',
+                         'test', 'now');
+                 INSERT INTO players
+                   (save_id, uid, name, ca, positions_json, attributes_json,
+                    raw_attributes_json, data_json, future_move_count,
+                    future_move_club_uid, future_move_club_name, future_move_date)
+                 VALUES
+                   (1, 1, 'Future mover', 100, '{}', '{}', '{}', '{}', 1, 1099,
+                    'A.C. Milan', '2031-05-22');",
+            )
+            .expect("seed");
+
+        let page = store
+            .query_players(&PlayerQuery {
+                save_id: 1,
+                page_size: Some(10),
+                ..PlayerQuery::default()
+            })
+            .expect("future move query");
+        let row = &page.rows[0];
+        assert_eq!(row.future_move_count, 1);
+        assert_eq!(row.future_move_club_uid, Some(1099));
+        assert_eq!(row.future_move_club_name.as_deref(), Some("A.C. Milan"));
+        assert_eq!(row.future_move_date.as_deref(), Some("2031-05-22"));
     }
 
     #[test]

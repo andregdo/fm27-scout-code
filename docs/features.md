@@ -63,6 +63,12 @@
 ## Desktop UI
 
 - Filters, multi-column sorting and player profiles.
+- Confirmed future transfers: the player row shows the destination club and start
+  date of the earliest agreed future move, and the profile header and contract
+  tab list every agreed move. The agreement comes from a state `19` offer in
+  `transfer_man`; future records without an agreed offer stay in the contract
+  chain, labelled as offers, and later contracts at the current club are
+  renewals.
 - Separate staff workspace with club/job/nation filters, attribute and role-suitability
   rules, profile attributes, role scores, contract terms and sortable role columns.
   Staff are read-only.

@@ -8,6 +8,7 @@ import {
 } from "@tanstack/react-table";
 import {
   ArrowDown,
+  ArrowRightLeft,
   ArrowUp,
   ArrowUpDown,
   ChevronLeft,
@@ -35,6 +36,30 @@ const ATTRIBUTE_TABLE_KEYS = [...TECHNICAL_COLUMNS, ...MENTAL_COLUMNS, ...PHYSIC
 const OVERVIEW_VISIBILITY: VisibilityState = Object.fromEntries(
   ATTRIBUTE_TABLE_KEYS.map((key) => [`attr_${key}`, false]),
 );
+
+function FutureTransferBadge({ row }: { row: PlayerRow }) {
+  const { t } = useI18n();
+  if (!row.future_move_club_name) return null;
+  return (
+    <span
+      className="mt-0.5 inline-flex max-w-full items-center gap-1 rounded-full bg-[var(--blue-soft)] px-1.5 py-px text-[9px] font-semibold text-[var(--blue)]"
+      data-testid="future-transfer-badge"
+      title={t("inspector.futureTransferSummary", {
+        club: row.future_move_club_name,
+        date: row.future_move_date ?? "—",
+      })}
+    >
+      <ArrowRightLeft size={9} className="shrink-0" />
+      <span className="truncate">{row.future_move_club_name}</span>
+      {row.future_move_date && (
+        <span className="shrink-0 font-normal opacity-70">{row.future_move_date}</span>
+      )}
+      {row.future_move_count > 1 && (
+        <span className="shrink-0 opacity-70">+{row.future_move_count - 1}</span>
+      )}
+    </span>
+  );
+}
 
 export function PlayerTable() {
   const { t, locale, formatValue, formatWage } = useI18n();
@@ -157,6 +182,7 @@ export function PlayerTable() {
                   {t("table.onLoan")}
                 </span>
               )}
+              <FutureTransferBadge row={row.original} />
             </button>
           ) : (
             <div className="min-w-0">
@@ -168,6 +194,7 @@ export function PlayerTable() {
                   {t("table.onLoan")}
                 </span>
               )}
+              <FutureTransferBadge row={row.original} />
             </div>
           ),
       },

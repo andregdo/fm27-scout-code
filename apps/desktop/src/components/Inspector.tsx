@@ -281,6 +281,27 @@ export function Inspector() {
                       {player.league_name}
                     </div>
                   )}
+                  {player.contract?.future_transfers?.length ? (
+                    <div
+                      className="mt-1 flex items-center gap-1 text-[10px] font-medium text-[var(--blue)]"
+                      data-testid="inspector-future-transfer"
+                    >
+                      <ArrowRightLeft size={10} className="shrink-0" />
+                      <span className="truncate">
+                        {t("inspector.futureTransferSummary", {
+                          club:
+                            player.contract.future_transfers[0].club_name ??
+                            t("common.unknownClub"),
+                          date: formatDate(player.contract.future_transfers[0].start),
+                        })}
+                      </span>
+                      {player.contract.future_transfers.length > 1 && (
+                        <span className="shrink-0 opacity-70">
+                          +{player.contract.future_transfers.length - 1}
+                        </span>
+                      )}
+                    </div>
+                  ) : null}
                   <div className="mt-0.5 flex items-center gap-1.5 text-[11px] text-[var(--muted)]">
                     <span>{t("common.yearsOld", { age: player.age ?? "?" })}</span>
                     <span className="text-[var(--line-strong)]">·</span>
@@ -518,7 +539,7 @@ export function Inspector() {
           />
         )}
         {tab === "positions" && <PositionsPanel positions={player.positions} />}
-        {tab === "contract" && <ContractPanel player={player} />}
+        {tab === "contract" && <ContractPanel player={player} gameDate={gameDate} />}
       </div>
     </aside>
   );
@@ -1152,9 +1173,13 @@ function PositionsPanel({ positions }: { positions: Positions }) {
   );
 }
 
-function ContractPanel({ player }: { player: Player }) {
+function ContractPanel({ player, gameDate }: { player: Player; gameDate: string | null }) {
   const { t, locale, currency, formatWage } = useI18n();
   const contract = player.contract;
+  const futureTransfers = contract?.future_transfers ?? [];
+  const futureKeys = new Set(
+    futureTransfers.map((entry) => `${entry.club_uid}:${entry.start}`),
+  );
   return (
     <div className="space-y-3 px-4 py-3">
       <div className="rounded-xl border border-[var(--line)] bg-[var(--surface-2)] p-3">
@@ -1204,6 +1229,50 @@ function ContractPanel({ player }: { player: Player }) {
           </div>
         </div>
       </div>
+
+      {futureTransfers.length > 0 && (
+        <div
+          className="rounded-xl border border-[var(--blue-line)] bg-[var(--blue-soft)] p-3"
+          data-testid="inspector-future-transfer-card"
+        >
+          <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-[var(--blue)]">
+            <ArrowRightLeft size={11} />
+            {t("inspector.futureTransfer")}
+          </div>
+          <div className="mt-2 space-y-2">
+            {futureTransfers.map((entry, index) => (
+              <div
+                key={`${entry.club_uid}-${entry.start}-${index}`}
+                className="rounded-[6px] bg-[var(--surface)] px-2 py-1.5"
+              >
+                <div className="text-sm font-semibold text-[var(--ink)]">
+                  {entry.club_name ?? t("common.unknownClub")}
+                </div>
+                <div className="mt-1 grid grid-cols-2 gap-x-2 gap-y-1 text-[10px]">
+                  <div>
+                    <span className="text-[var(--muted)]">{t("inspector.start")}</span>{" "}
+                    <span className="font-mono text-[var(--ink)]">
+                      {formatDate(entry.start)}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-[var(--muted)]">{t("inspector.wage")}</span>{" "}
+                    <span className="font-mono text-[var(--ink)]">
+                      {formatWage(entry.wage)}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-[var(--muted)]">{t("inspector.expiry")}</span>{" "}
+                    <span className="font-mono text-[var(--ink)]">
+                      {formatDate(entry.end)}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {player.suspensions.length > 0 && (
         <div>
@@ -1290,22 +1359,49 @@ function ContractPanel({ player }: { player: Player }) {
             {t("inspector.chain")}
           </div>
           <div className="space-y-1">
-            {contract.chain.map((entry, index) => (
-              <div key={index} className="flex items-center gap-2 rounded-[6px] border border-[var(--line)] px-2 py-1.5">
-                <ChevronRight size={11} className="text-[var(--muted)]" />
-                <div className="min-w-0 flex-1">
-                  <div className="truncate text-[10px] font-medium text-[var(--ink)]">
-                    {entry.club_name ?? t("common.unknownClub")}
+            {contract.chain.map((entry, index) => {
+              const isConfirmedFuture = futureKeys.has(`${entry.club_uid}:${entry.start}`);
+              const isOffer =
+                !isConfirmedFuture &&
+                gameDate != null &&
+                entry.start != null &&
+                entry.start > gameDate &&
+                entry.club_uid !== contract.club_uid;
+              return (
+                <div
+                  key={index}
+                  className={cn(
+                    "flex items-center gap-2 rounded-[6px] border px-2 py-1.5",
+                    isConfirmedFuture
+                      ? "border-[var(--blue-line)] bg-[var(--blue-soft)]"
+                      : isOffer
+                        ? "border-[var(--gold-line)] bg-[var(--gold-soft)]"
+                        : "border-[var(--line)]",
+                  )}
+                >
+                  <ChevronRight size={11} className="text-[var(--muted)]" />
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate text-[10px] font-medium text-[var(--ink)]">
+                      {entry.club_name ?? t("common.unknownClub")}
+                    </div>
+                    <div className="text-[9px] text-[var(--muted)]">
+                      {entry.start ?? "—"} → {entry.end ?? "—"}
+                    </div>
                   </div>
-                  <div className="text-[9px] text-[var(--muted)]">
-                    {entry.start ?? "—"} → {entry.end ?? "—"}
-                  </div>
+                  {isConfirmedFuture ? (
+                    <Badge tone="blue">{t("inspector.futureBadge")}</Badge>
+                  ) : isOffer ? (
+                    <Badge tone="gold" title={t("inspector.offerBadgeTitle")}>
+                      {t("inspector.offerBadge")}
+                    </Badge>
+                  ) : (
+                    entry.has_terms && (
+                      <Badge tone="outline">{t("inspector.contractBadge")}</Badge>
+                    )
+                  )}
                 </div>
-                {entry.has_terms && (
-                  <Badge tone="outline">{t("inspector.contractBadge")}</Badge>
-                )}
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       )}

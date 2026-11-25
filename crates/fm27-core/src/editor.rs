@@ -466,6 +466,7 @@ impl PlayerEditor {
             club_names: &self.club_names,
             club_by_team: &self.club_by_team,
             clock: self.clock,
+            agreed_future_clubs: None,
         };
         let location = decoder
             .locate_in_effect(
@@ -607,6 +608,7 @@ impl PlayerEditor {
             club_names: &self.club_names,
             club_by_team: &self.club_by_team,
             clock: self.clock,
+            agreed_future_clubs: None,
         };
         let contract = decoder
             .decode(

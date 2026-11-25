@@ -65,6 +65,7 @@ pub fn read_managed_club(
         club_names: &clubs.name_by_uid,
         club_by_team: &clubs.fielding_team_to_club,
         clock,
+        agreed_future_clubs: None,
     };
     let chain_club_uid = chain_record_club(game_db, selector, &decoder, clock);
 
