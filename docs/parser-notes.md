@@ -171,7 +171,7 @@ full-finance row on the tested save (319 of 30,975 rows) uses the longer block;
 rows without a finance chain are unchanged. The reader accepts both sizes and
 keeps the one whose following `after_finance` walk lands on the row's own footer
 ordinal, so an unknown tail shape fails the table walk instead of shifting later
-rows.
+rows. Build `27.1.1+2511875` keeps the 72-byte block.
 
 Each row has a kind byte (0 ordinary, 12 extended), two length-prefixed names,
 variable finance steps, team counts, affiliate team counts and a 12-byte footer.
@@ -196,7 +196,7 @@ validator allows `end - start >= -1 day`, matching the current fmsave FM27
 layout.
 
 The fixed suffix is 68 bytes through build `27.0.1+2503222` and 73 bytes on
-`27.1.0+2505117`. The five new bytes are the same status byte and game date that
+`27.1.0`/`27.1.1`. The five new bytes are the same status byte and game date that
 grow the full-finance closing block, inserted at suffix offset 22; the later
 fixed bytes, dates and primary count shift by five. The parser tries both shapes
 and accepts exactly one; two valid shapes fail closed.
@@ -215,6 +215,7 @@ Measured coverage after scanning every club record:
 | `27.0.0+2486695` | 167 | 1,094 | 0 |
 | `27.0.1+2503222` | 318 | 1,627 | 1 |
 | `27.1.0+2505117` | 318 | 1,625 | 1 |
+| `27.1.1+2511875` (2030-04-05) | 378 | 1,832 | 1 |
 
 The rejected lists on 27.0.1 and 27.1.0 belong to Ipswich Town: one row stores
 values near `u32::MAX` (a total above the 2,000,000,000 bound, with an annual
@@ -223,7 +224,8 @@ instead of exposing the sentinel. On `27.0.0`, every row the locally installed
 fmsave 0.7.0 oracle returns is present in the Rust output by type, dates, total
 and annual value; the oracle itself covers 121 clubs, while Rust now reads 167.
 The newer fmsave layout returns the 17 extra Málaga boundary rows the 0.7.0
-checkout rejects.
+checkout rejects. The `27.1.0` and `27.1.1` saves of the 2030-04-05 career
+produce identical sponsor lists and rows.
 
 The rows hold contract terms, not a sponsor name. Expired contracts retain
 their stored annual value, so current income must be filtered against the save's
@@ -233,7 +235,7 @@ Kit, 3 and 23 Stadium, 4 General, 5 Individual TV Deal, 7 Club Membership, 8 Awa
 Kit, 9 Additional Kit Sponsor, 11 Back of Shirt, 12 Shorts, 13 Training Kit, 14
 Youth Team, 15 Training Ground, 16 Continental Competition, 19 Shirt Sleeve and
 22 Kit Manufacturer on 27.0.0/27.0.1. Codes 2, 6, 17 and 18 remain unnamed, and
-27.1.0 keeps raw codes until its screen is checked.
+27.1.0/27.1.1 keep raw codes until their screen is checked.
 
 ## Nations and club gender
 

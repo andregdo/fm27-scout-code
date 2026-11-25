@@ -2,7 +2,7 @@
 
 Status: **experimental, CLI and desktop, mechanically verified and accepted in game on
 `27.0.0+2486695` and `27.0.1+2503222`.** Re-parse and roster verification also pass on
-`27.1.0+2505117`; in-game loading on that build has not been tested.
+`27.1.0+2505117` and `27.1.1+2511875`; in-game loading on those builds has not been tested.
 
 The transfer editor moves a contracted player to another club's senior team in a new save
 copy. It never modifies the source save. It uses the same `SaveFile::write_with_replacements`
