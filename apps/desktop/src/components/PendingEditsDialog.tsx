@@ -7,6 +7,7 @@ import {
   Loader2,
   Save,
   Trash2,
+  UserMinus,
 } from "lucide-react";
 import { pickEditOutputFile, savePendingChanges } from "@/lib/api";
 import { attributeLabel, personalityLabel, traitLabel } from "@/lib/labels";
@@ -18,6 +19,7 @@ import {
   useAppStore,
   type PendingChange,
   type PendingEdit,
+  type PendingRelease,
   type PendingTransfer,
 } from "@/store/app";
 import { Button, Modal } from "./ui";
@@ -30,9 +32,13 @@ export function PendingEditsDialog() {
   const summary = useAppStore((state) => state.summary);
   const pendingEdits = useAppStore((state) => state.pendingEdits);
   const pendingTransfers = useAppStore((state) => state.pendingTransfers);
+  const pendingReleases = useAppStore((state) => state.pendingReleases);
   const removePendingEdit = useAppStore((state) => state.removePendingEdit);
   const removePendingTransfer = useAppStore(
     (state) => state.removePendingTransfer,
+  );
+  const removePendingRelease = useAppStore(
+    (state) => state.removePendingRelease,
   );
   const clearPendingChanges = useAppStore((state) => state.clearPendingChanges);
   const pushToast = useAppStore((state) => state.pushToast);
@@ -54,14 +60,47 @@ export function PendingEditsDialog() {
   const transfers = Object.values(pendingTransfers).sort((left, right) =>
     left.name.localeCompare(right.name),
   );
-  const hasEntries = entries.length > 0 || transfers.length > 0;
+  const releases = Object.values(pendingReleases).sort((left, right) =>
+    left.name.localeCompare(right.name),
+  );
+  const hasEntries =
+    entries.length > 0 || transfers.length > 0 || releases.length > 0;
   const pendingPlayers = new Set([
     ...entries.map((edit) => edit.uid),
     ...transfers.map((transfer) => transfer.uid),
+    ...releases.map((release) => release.uid),
   ]).size;
   const totalChanges =
     entries.reduce((total, edit) => total + edit.changes.length, 0) +
-    transfers.reduce((total, transfer) => total + transfer.changes.length, 0);
+    transfers.reduce((total, transfer) => total + transfer.changes.length, 0) +
+    releases.reduce((total, release) => total + release.changes.length, 0);
+
+  const summaryText = (
+    players: number,
+    transferCount: number,
+    releaseCount: number,
+    changes: number,
+  ) =>
+    transferCount > 0 && releaseCount > 0
+      ? t("pending.summaryAll", {
+          players,
+          transfers: transferCount,
+          releases: releaseCount,
+          changes,
+        })
+      : transferCount > 0
+        ? t("pending.summaryTransfers", {
+            players,
+            transfers: transferCount,
+            changes,
+          })
+        : releaseCount > 0
+          ? t("pending.summaryReleases", {
+              players,
+              releases: releaseCount,
+              changes,
+            })
+          : t("pending.summary", { players, changes });
 
   const save = async () => {
     if (saveId == null || !hasEntries) return;
@@ -80,6 +119,7 @@ export function PendingEditsDialog() {
           uid: transfer.uid,
           to_club_uid: transfer.to_club_uid,
         })),
+        releases.map((release) => ({ uid: release.uid })),
       );
       setResult(written);
       clearPendingChanges();
@@ -165,16 +205,12 @@ export function PendingEditsDialog() {
             {t("pending.successDescription", { path: result.output })}
           </div>
           <div className="text-[10px] text-[var(--muted)]">
-            {result.transfers > 0
-              ? t("pending.summaryTransfers", {
-                  players: result.players,
-                  transfers: result.transfers,
-                  changes: result.changes,
-                })
-              : t("pending.summary", {
-                  players: result.players,
-                  changes: result.changes,
-                })}
+            {summaryText(
+              result.players,
+              result.transfers,
+              result.releases,
+              result.changes,
+            )}
           </div>
         </div>
       ) : !hasEntries ? (
@@ -191,16 +227,12 @@ export function PendingEditsDialog() {
           <div className="flex items-center justify-between rounded-lg border border-[var(--line)] bg-[var(--surface-2)] px-3 py-2">
             <div className="flex items-center gap-2 text-[11px] text-[var(--muted)]">
               <ClipboardList size={14} className="text-[var(--accent)]" />
-              {transfers.length > 0
-                ? t("pending.summaryTransfers", {
-                    players: pendingPlayers,
-                    transfers: transfers.length,
-                    changes: totalChanges,
-                  })
-                : t("pending.summary", {
-                    players: entries.length,
-                    changes: totalChanges,
-                  })}
+              {summaryText(
+                pendingPlayers,
+                transfers.length,
+                releases.length,
+                totalChanges,
+              )}
             </div>
             <span className="text-[10px] text-[var(--muted)]">{t("pending.hint")}</span>
           </div>
@@ -220,9 +252,24 @@ export function PendingEditsDialog() {
             </div>
           )}
 
+          {releases.length > 0 && (
+            <div className="space-y-2">
+              <div className="text-[9px] font-semibold uppercase tracking-wide text-[var(--muted)]">
+                {t("pending.releases")}
+              </div>
+              {releases.map((release) => (
+                <PendingReleaseRow
+                  key={release.uid}
+                  release={release}
+                  onRemove={() => removePendingRelease(release.uid)}
+                />
+              ))}
+            </div>
+          )}
+
           {entries.length > 0 && (
             <div className="space-y-2">
-              {transfers.length > 0 && (
+              {(transfers.length > 0 || releases.length > 0) && (
                 <div className="text-[9px] font-semibold uppercase tracking-wide text-[var(--muted)]">
                   {t("pending.playerEdits")}
                 </div>
@@ -302,6 +349,62 @@ function PendingTransferRow({
             {t("pending.squadNumberCleared", {
               number: transfer.squad_number_before,
             })}
+          </span>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function PendingReleaseRow({
+  release,
+  onRemove,
+}: {
+  release: PendingRelease;
+  onRemove: () => void;
+}) {
+  const { t } = useI18n();
+  return (
+    <div className="rounded-xl border border-[var(--line)] bg-[var(--surface)] px-3 py-2.5">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="text-[12px] font-semibold text-[var(--ink)]">
+            {release.name}
+          </div>
+          <div className="mt-0.5 truncate text-[9px] text-[var(--muted)]">
+            uid {release.uid} · {release.from_club_name} →{" "}
+            {t("common.freeAgent")}
+          </div>
+        </div>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="h-6 shrink-0 px-1.5 text-[10px]"
+          onClick={onRemove}
+        >
+          <Trash2 size={11} />
+          {t("pending.remove")}
+        </Button>
+      </div>
+      <div className="mt-2 flex flex-wrap gap-1">
+        <span className="flex items-center gap-1 rounded-[4px] border border-[var(--accent-line)] bg-[var(--accent-soft)] px-1.5 py-0.5 text-[9px] text-[var(--accent-strong)]">
+          <UserMinus size={9} />
+          {t("pending.release")}
+        </span>
+        <span className="rounded-[4px] border border-[var(--line)] bg-[var(--surface-2)] px-1.5 py-0.5 text-[9px] text-[var(--muted)]">
+          {t("release.roster", {
+            before: release.players_before,
+            after: release.players_after,
+          })}
+        </span>
+        {release.lists_cleared > 1 && (
+          <span className="rounded-[4px] border border-[var(--line)] bg-[var(--surface-2)] px-1.5 py-0.5 text-[9px] text-[var(--muted)]">
+            {t("pending.extraLists", { count: release.lists_cleared - 1 })}
+          </span>
+        )}
+        {release.captaincy_cleared && (
+          <span className="rounded-[4px] border border-[var(--line)] bg-[var(--surface-2)] px-1.5 py-0.5 text-[9px] text-[var(--muted)]">
+            {t("transfer.captaincyCleared")}
           </span>
         )}
       </div>

@@ -166,6 +166,13 @@
   simple move. Fees, transfer history, free-agent signings and loans are not
   included; the old squad number is cleared and the new club assigns one after
   loading.
+- Experimental player releases (CLI and desktop): release a contracted player
+  from his club and leave him a free agent. The edit clears the player's team id,
+  removes him from every team list of his club that holds him and leaves a
+  captaincy empty; the contract record, wage, squad number and listing bits are
+  kept. The desktop **Release** dialog previews the release and stages it as a
+  pending change; **Pending changes** writes it with the other staged changes.
+  Verified by re-parsing the new save; in-game loading is not tested yet.
 - The source save is never modified; existing output files are not overwritten;
   the result is verified by re-parsing it.
 - See [editor.md](editor.md) for the workflow and safety notes.

@@ -99,6 +99,10 @@ cargo build --release -p fm27-cli
 ./target/release/fm27scout transfer "/path/to/save.fm" \
   --uid 2000449256 --to-club 2391 \
   --output transferred.fm --save-name "FM27 Scout Transfer Test"
+
+# Experimental: release a contracted player and leave him a free agent
+./target/release/fm27scout release "/path/to/save.fm" \
+  --uid 200515 --output released.fm --save-name "FM27 Scout Release Test"
 ```
 
 The `edit` subcommand is documented in [editor.md](editor.md). It supports builds

@@ -25,6 +25,8 @@ import type {
   PlayerEditRequest,
   PlayerPage,
   PlayerQuery,
+  ReleaseBatch,
+  ReleaseChange,
   RoleScore,
   SaveRecord,
   ScoutOverview,
@@ -63,6 +65,7 @@ import {
   mockGrowthHistory,
   mockManagedClub,
   mockPlayerRoles,
+  mockReleasePlan,
   mockQuery,
   mockQueryClubs,
   mockQueryStaff,
@@ -256,11 +259,20 @@ export async function previewTransfer(
   return timedInvoke<TransferChange>("preview_transfer", { saveId, uid, toClubUid });
 }
 
+export async function previewRelease(
+  saveId: number,
+  uid: number,
+): Promise<ReleaseChange> {
+  if (!isTauri) return mockReleasePlan(uid);
+  return timedInvoke<ReleaseChange>("preview_release", { saveId, uid });
+}
+
 export async function savePendingChanges(
   saveId: number,
   outputPath: string,
   edits: PlayerEditBatch[],
   transfers: TransferBatch[],
+  releases: ReleaseBatch[],
 ): Promise<BatchSaveResult> {
   if (!isTauri) {
     const changes =
@@ -277,12 +289,14 @@ export async function savePendingChanges(
           (edit.request.contract_end != null ? 1 : 0),
         0,
       ) +
-      transfers.length;
+      transfers.length +
+      releases.length;
     return {
       output: outputPath,
       file_size: 0,
       players: edits.length,
       transfers: transfers.length,
+      releases: releases.length,
       changes,
     };
   }
@@ -291,6 +305,7 @@ export async function savePendingChanges(
     outputPath,
     edits,
     transfers,
+    releases,
   });
 }
 

@@ -26,6 +26,7 @@ export function useOpenSave() {
       const pendingCount = new Set([
         ...Object.keys(state.pendingEdits),
         ...Object.keys(state.pendingTransfers),
+        ...Object.keys(state.pendingReleases),
       ]).size;
       if (pendingCount > 0) {
         const message = t("pending.discardBeforeOpen", { count: pendingCount });

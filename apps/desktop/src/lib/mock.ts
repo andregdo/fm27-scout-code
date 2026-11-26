@@ -53,6 +53,7 @@ import type {
   StatsMoneyballRow,
   Trait,
   TraitOption,
+  ReleaseChange,
   TransferChange,
   ValueFinderPage,
   ValueFinderRequest,
@@ -504,6 +505,50 @@ export function mockTransferPlan(uid: number, toClubUid: number): TransferChange
         after_display: gameDate,
       },
       { field: "contract.squad_number", before: squadNumber, after: 255 },
+    ],
+  };
+}
+
+export function mockReleasePlan(uid: number): ReleaseChange {
+  const player = MOCK_PLAYERS.find((item) => item.uid === uid) ?? MOCK_PLAYERS[0];
+  const from =
+    MOCK_CLUB_ROWS.find((club) => club.uid === player.club_uid) ?? MOCK_CLUB_ROWS[0];
+  const fromTeam = 1_000_000 + from.uid;
+  const contract = player.contract;
+  return {
+    uid: player.uid,
+    player_index: 50_000 + (player.uid % 10_000),
+    from_club_uid: from.uid,
+    from_club_name: from.name,
+    from_team_id: fromTeam,
+    players_before: from.player_count,
+    players_after: from.player_count - 1,
+    lists: [
+      {
+        team_id: fromTeam,
+        club_uid: from.uid,
+        players_before: from.player_count,
+        players_after: from.player_count - 1,
+      },
+    ],
+    captaincy_cleared: false,
+    contract_team_id: contract?.team_id ?? fromTeam,
+    contract_wage: contract?.wage ?? 0,
+    contract_start: contract?.start ?? null,
+    contract_end: contract?.end ?? null,
+    changes: [
+      {
+        field: "club.uid",
+        before: from.uid,
+        after: 0,
+        before_display: from.name,
+      },
+      { field: "team.id", before: fromTeam, after: 4_294_967_295 },
+      {
+        field: "roster.players",
+        before: from.player_count,
+        after: from.player_count - 1,
+      },
     ],
   };
 }

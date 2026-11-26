@@ -97,6 +97,7 @@ export interface BatchSaveResult {
   file_size: number;
   players: number;
   transfers: number;
+  releases: number;
   changes: number;
 }
 
@@ -104,6 +105,39 @@ export interface BatchSaveResult {
 export interface TransferBatch {
   uid: number;
   to_club_uid: number;
+}
+
+/** A staged release sent to the batch save command. */
+export interface ReleaseBatch {
+  uid: number;
+}
+
+/** One team list a release removed the player from. */
+export interface ReleaseListChange {
+  team_id: number;
+  club_uid: number;
+  players_before: number;
+  players_after: number;
+}
+
+export interface ReleaseChange {
+  uid: number;
+  /** The player's stored index plus one, used by the team player lists. */
+  player_index: number;
+  from_club_uid: number;
+  from_club_name: string;
+  from_team_id: number;
+  /** Squad count of the player's registered team before and after the release. */
+  players_before: number;
+  players_after: number;
+  lists: ReleaseListChange[];
+  captaincy_cleared: boolean;
+  /** The contract is left in the save, as the game leaves a free agent's. */
+  contract_team_id: number;
+  contract_wage: number;
+  contract_start: string | null;
+  contract_end: string | null;
+  changes: EditChange[];
 }
 
 export interface TransferChange {

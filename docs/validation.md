@@ -351,7 +351,8 @@ at the same in-game date (2030-04-05), one save written by each build:
   identical; the contract table differed only in eight clause amounts and the
   regenerated player's key.
 - `editor_real_save` (CA/PA, attributes, personality, traits, wage and contract
-  end), the club-edit real-save test and the transfer real-save test passed
-  against the new build, with every output re-parsed and field-verified.
+  end), the club-edit real-save test, the transfer real-save test and the release
+  real-save test passed against the new build, with every output re-parsed and
+  field-verified.
 - The managed club resolves to A.C. Milan with manager `AP King` on the new
   build.

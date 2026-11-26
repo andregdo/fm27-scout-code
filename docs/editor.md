@@ -40,9 +40,9 @@ The dialog groups:
 
 **Add to pending changes** stages the changes instead of writing a save. Repeat for
 as many players as needed; pending players show a count in the toolbar. Open
-**Pending changes** to review/remove staged players and transfers, then **Save all
-to a copy…** writes every staged change in one batch through a native Save dialog.
-The batch is verified by re-parsing the new save, and the source save is never
+**Pending changes** to review/remove staged players, transfers and releases, then
+**Save all to a copy…** writes every staged change in one batch through a native Save
+dialog. The batch is verified by re-parsing the new save, and the source save is never
 overwritten.
 
 ## Club edits
@@ -100,6 +100,40 @@ permanent move loaded normally in FM27 on `27.0.0+2486695` and `27.0.1+2503222`,
 player at the new club. For a new kind of move, still load the new save, advance several
 days, and check the player's club, the squad screen, the next match and the transfer
 window. A build whose player lists do not validate is refused.
+
+## Release edits
+
+The CLI and the desktop app can release a contracted player from his club, leaving him a
+free agent in a new save copy. In the player profile, **Release** previews the release in
+memory and stages it as a pending change. **Pending changes** writes and verifies one new
+file containing every staged edit, transfer and release. The equivalent CLI command is:
+
+```bash
+./target/release/fm27scout release "/path/to/save.fm" \
+  --uid 200515 --output released.fm --save-name "FM27 Scout Release Test"
+```
+
+The release writes:
+
+- the player's `team_id`, set to the missing marker (`FFFFFFFF`);
+- every team list of his club that holds him: the player is removed and a captain or
+  vice-captain reference to him is left empty. Unlike a transfer, the lists only shrink, so
+  `game_db` loses four bytes per rewritten list.
+
+The contract record is left untouched, including its team, wage, dates, squad number and
+listing bits, because the game's own free agents keep their last contract with nothing
+pointing at it. The club join date is also kept. See
+[release-editor.md](release-editor.md) for the evidence and full guard list.
+
+The command refuses free agents, loans, expired contracts, future contract records and
+players whose registered team has no stored list. It does not edit saved tactics, create
+transfer history or change club finances.
+
+Mechanically the edit is verified by re-parsing the new save: the player has no club or
+team, the contract is unchanged, every rewritten list no longer holds him, and `game_db`
+shrank by exactly four bytes per list. In-game loading of a released save has not been
+tested yet; load the copy, advance several days and check that the player is a free agent
+before relying on it.
 
 ## Contract edits
 

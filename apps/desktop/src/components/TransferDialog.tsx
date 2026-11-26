@@ -24,6 +24,7 @@ export function TransferDialog() {
   const selectedUid = useAppStore((state) => state.selectedUid);
   const pendingEdits = useAppStore((state) => state.pendingEdits);
   const pendingTransfers = useAppStore((state) => state.pendingTransfers);
+  const pendingReleases = useAppStore((state) => state.pendingReleases);
   const stageTransfer = useAppStore((state) => state.stageTransfer);
   const pushToast = useAppStore((state) => state.pushToast);
   const { data: player, isLoading } = usePlayerDetail(open ? selectedUid : null);
@@ -45,6 +46,7 @@ export function TransferDialog() {
   );
   const pendingEdit = player ? pendingEdits[player.uid] : undefined;
   const pendingTransfer = player ? pendingTransfers[player.uid] : undefined;
+  const pendingRelease = player ? pendingReleases[player.uid] : undefined;
 
   useEffect(() => {
     const timer = window.setTimeout(() => setDebouncedSearch(search), 250);
@@ -81,7 +83,7 @@ export function TransferDialog() {
   };
 
   const stage = () => {
-    if (!player || !destination || !plan) return;
+    if (!player || !destination || !plan || pendingRelease) return;
     if (plan.to_club_uid !== destination.uid) return;
     const name = player.name ?? t("common.unnamedPlayer");
     stageTransfer({
@@ -132,7 +134,11 @@ export function TransferDialog() {
             variant="primary"
             size="sm"
             onClick={stage}
-            disabled={!plan || plan.to_club_uid !== destination?.uid}
+            disabled={
+              !plan ||
+              plan.to_club_uid !== destination?.uid ||
+              pendingRelease != null
+            }
           >
             <ArrowRightLeft size={13} />
             {t("transfer.stage")}
@@ -167,7 +173,7 @@ export function TransferDialog() {
             </div>
           </div>
 
-          {(pendingEdit || pendingTransfer) && (
+          {(pendingEdit || pendingTransfer || pendingRelease) && (
             <div className="space-y-1 rounded-lg border border-[var(--line)] bg-[var(--surface-2)] px-3 py-2 text-[10px] leading-relaxed text-[var(--muted)]">
               {pendingEdit && <div>{t("transfer.pendingNote")}</div>}
               {pendingTransfer && (
@@ -175,6 +181,11 @@ export function TransferDialog() {
                   {t("transfer.alreadyStaged", {
                     club: pendingTransfer.to_club_name,
                   })}
+                </div>
+              )}
+              {pendingRelease && (
+                <div className="text-[var(--danger)]">
+                  {t("transfer.pendingRelease")}
                 </div>
               )}
             </div>

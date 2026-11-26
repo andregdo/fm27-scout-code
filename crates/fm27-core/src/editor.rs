@@ -15,8 +15,8 @@ use crate::container::{SaveFile, SaveWriteReport};
 use crate::contracts::{ContractDecoder, ContractLocation};
 use crate::error::{Error, Result};
 use crate::layout::{
-    ATTRIBUTE_KEYS, ContractLayout, FinanceLayout, GAME_DB_SCHEMA, PERSONALITY_KEYS, PersonLayout,
-    PlayerLayout, decode_date, editable_builds, encode_date, is_ca_exempt_attribute,
+    ATTRIBUTE_KEYS, ContractLayout, FinanceLayout, GAME_DB_SCHEMA, MISSING_U32, PERSONALITY_KEYS,
+    PersonLayout, PlayerLayout, decode_date, editable_builds, encode_date, is_ca_exempt_attribute,
     is_editable_build, read_i16, read_u8, read_u16, read_u32, read_u64, stored_attribute_index,
     trait_name,
 };
@@ -139,6 +139,121 @@ impl TransferChange {
                 "player uid {} still wears squad number {number}",
                 self.uid
             )));
+        }
+        Ok(())
+    }
+}
+
+/// One team list a release removed the player from.
+#[derive(Debug, Clone, Serialize)]
+pub struct ReleaseListChange {
+    pub team_id: u32,
+    /// The club stored in the team record, used to read the list again.
+    pub club_uid: u32,
+    pub players_before: usize,
+    pub players_after: usize,
+}
+
+/// A player released from his club, leaving him a free agent.
+///
+/// The game's own free agents have no registered team. Their last contract
+/// record stays in the save with nothing pointing at it, so a release removes
+/// the player from his club's team lists and clears his team id, and leaves the
+/// contract, wages, squad number and listing bits as they were.
+#[derive(Debug, Clone, Serialize)]
+pub struct ReleaseChange {
+    pub uid: u32,
+    /// The player's stored index plus one, used by the team player lists.
+    pub player_index: u32,
+    pub from_club_uid: u32,
+    pub from_club_name: String,
+    pub from_team_id: u32,
+    /// Squad count of the player's registered team before and after the release.
+    pub players_before: usize,
+    pub players_after: usize,
+    pub lists: Vec<ReleaseListChange>,
+    pub captaincy_cleared: bool,
+    /// The contract is left in the save, as the game leaves a free agent's.
+    pub contract_team_id: u32,
+    pub contract_wage: u32,
+    pub contract_start: Option<String>,
+    pub contract_end: Option<String>,
+    pub changes: Vec<EditChange>,
+}
+
+impl ReleaseChange {
+    /// Re-parse a save written by [`PlayerEditor::release`] and verify it.
+    pub fn verify_save(&self, path: impl AsRef<Path>) -> Result<()> {
+        let path = path.as_ref();
+        let parsed = crate::parse::parse_save(path)?;
+        let save = SaveFile::open(path)?;
+        let metadata = crate::metadata::read_metadata(&save)?;
+        let editor = PlayerEditor::open(&save, &metadata)?;
+        self.verify(&parsed, &editor)
+    }
+
+    /// Verify the release against an already parsed save and its editor.
+    pub fn verify(&self, parsed: &ParsedSave, editor: &PlayerEditor) -> Result<()> {
+        let player = parsed
+            .players
+            .iter()
+            .find(|player| player.uid == self.uid)
+            .ok_or_else(|| {
+                Error::parse(format!(
+                    "the released save no longer contains player uid {}",
+                    self.uid
+                ))
+            })?;
+        if player.club_uid.is_some() {
+            return Err(Error::parse(format!(
+                "player uid {} still belongs to club {:?}",
+                self.uid, player.club_uid
+            )));
+        }
+        if player.team_id.is_some() {
+            return Err(Error::parse(format!(
+                "player uid {} is still registered with team {:?}",
+                self.uid, player.team_id
+            )));
+        }
+        let contract = player.contract.as_ref().ok_or_else(|| {
+            Error::parse(format!(
+                "player uid {} lost his contract record; a release leaves it in place",
+                self.uid
+            ))
+        })?;
+        if contract.club_uid != Some(self.from_club_uid) {
+            return Err(Error::parse(format!(
+                "player uid {}'s contract names club {:?}, expected the released club {}",
+                self.uid, contract.club_uid, self.from_club_uid
+            )));
+        }
+        if contract.team_id != Some(self.contract_team_id) {
+            return Err(Error::parse(format!(
+                "player uid {}'s contract names team {:?}, expected the unchanged team {}",
+                self.uid, contract.team_id, self.contract_team_id
+            )));
+        }
+        if contract.wage != Some(self.contract_wage) {
+            return Err(Error::parse(format!(
+                "player uid {}'s contract wage changed to {:?}; a release leaves it unchanged",
+                self.uid, contract.wage
+            )));
+        }
+        if contract.start != self.contract_start || contract.end != self.contract_end {
+            return Err(Error::parse(format!(
+                "player uid {}'s contract dates changed; a release leaves them unchanged",
+                self.uid
+            )));
+        }
+        for list in &self.lists {
+            let roster = editor.team_roster(list.team_id, list.club_uid)?;
+            if roster.contains(&self.player_index) {
+                return Err(Error::parse(format!(
+                    "team {} still lists player index {}",
+                    list.team_id, self.player_index
+                )));
+            }
         }
         Ok(())
     }
@@ -499,6 +614,32 @@ impl PlayerEditor {
         Ok(roster::find_team_list(&self.game_db, team_id, Some(club_uid), &self.pindexes)?.players)
     }
 
+    /// Every stored team player list the club fields.
+    ///
+    /// Senior teams store their club uid in the record; affiliate or reserve
+    /// teams may be stored under a separate club, so a list that does not match
+    /// the expected club is retried without the club constraint. Teams without
+    /// a stored list are skipped.
+    fn club_team_lists(&self, club_uid: u32) -> Result<Vec<roster::TeamListRecord>> {
+        let teams = self.club_teams.get(&club_uid).cloned().unwrap_or_default();
+        let mut seen = HashSet::new();
+        let mut lists = Vec::new();
+        for team_id in teams {
+            if !seen.insert(team_id) {
+                continue;
+            }
+            let found =
+                roster::find_team_list(&self.game_db, team_id, Some(club_uid), &self.pindexes)
+                    .or_else(|_| {
+                        roster::find_team_list(&self.game_db, team_id, None, &self.pindexes)
+                    });
+            if let Ok(list) = found {
+                lists.push(list);
+            }
+        }
+        Ok(lists)
+    }
+
     /// The player's squad number on the current contract, if one is assigned.
     pub fn squad_number(&self, uid: u32) -> Result<Option<u8>> {
         let location = self.current_contract_location(uid)?;
@@ -776,6 +917,183 @@ impl PlayerEditor {
             to_players_after: roster_change.to_players_after,
             captaincy_cleared: roster_change.captaincy_cleared,
             squad_number_before,
+            changes,
+        })
+    }
+
+    /// Release a contracted player from his club, leaving him a free agent.
+    ///
+    /// The edit removes the player from every team list of his club that holds
+    /// him, clears a captain or vice-captain reference to him, and sets the
+    /// player's team id to the missing marker. The current contract record is
+    /// left in the save untouched, as the game leaves the contract of its own
+    /// free agents. The player must be under contract with the club he plays
+    /// for; loans, expired contracts and future contract records are refused.
+    pub fn release(&mut self, uid: u32) -> Result<ReleaseChange> {
+        let record = self.require_record(uid)?;
+        let team_at = record.offset + PlayerLayout::TEAM_ID_OFFSET;
+        let player_team = read_u32(&self.game_db, team_at)
+            .ok_or_else(|| Error::parse("the player record ends before its team id"))?;
+        if player_team == MISSING_U32 {
+            return Err(Error::Unsupported(format!(
+                "player uid {uid} is already a free agent"
+            )));
+        }
+        let Some((from_club_uid, _slot)) = self.club_by_team.get(&player_team).copied() else {
+            return Err(Error::Unsupported(format!(
+                "player uid {uid} is not registered with a club team"
+            )));
+        };
+        let from_club_name = self
+            .club_names
+            .get(&from_club_uid)
+            .cloned()
+            .unwrap_or_else(|| format!("club {from_club_uid}"));
+        let location = self.current_contract_location(uid)?;
+        if location.club_uid != Some(from_club_uid) {
+            return Err(Error::Unsupported(format!(
+                "player uid {uid} is on loan or his contract belongs to another club; only a player under contract with his club can be released"
+            )));
+        }
+
+        // A future contract or agreed move would outlive the release. Refuse it
+        // rather than leave a record the game may act on later.
+        let position = *self
+            .records
+            .by_uid
+            .get(&uid)
+            .ok_or_else(|| Error::parse(format!("player uid {uid} was not found")))?;
+        let window_end = self.records.window_end(position, self.game_db.len());
+        let decoder = ContractDecoder {
+            club_names: &self.club_names,
+            club_by_team: &self.club_by_team,
+            clock: self.clock,
+            agreed_future_clubs: None,
+        };
+        let contract = decoder
+            .decode(
+                &self.game_db,
+                record.offset,
+                window_end,
+                position + 1 == self.records.records.len(),
+                record.pindex,
+                Some(from_club_uid),
+            )
+            .ok_or_else(|| {
+                Error::Unsupported(format!(
+                    "player uid {uid}'s contract chain could not be decoded"
+                ))
+            })?;
+        let clock_text = self.clock.to_string();
+        if contract.chain.iter().any(|entry| {
+            entry
+                .start
+                .as_deref()
+                .is_some_and(|start| start > clock_text.as_str())
+        }) {
+            return Err(Error::Unsupported(format!(
+                "player uid {uid} has a future contract or offer record; only a current contract can be released"
+            )));
+        }
+
+        let player_index = record
+            .pindex
+            .checked_add(1)
+            .ok_or_else(|| Error::parse("the player index overflows"))?;
+        let mut lists = Vec::new();
+        for list in self.club_team_lists(from_club_uid)? {
+            if list.players.contains(&player_index) {
+                lists.push(list);
+            }
+        }
+        let Some(registered) = lists.iter().find(|list| list.team_id == player_team) else {
+            return Err(Error::Unsupported(format!(
+                "player uid {uid}'s registered team {player_team} does not list him; refusing to release"
+            )));
+        };
+        let players_before = registered.players.len();
+        let players_after = players_before.saturating_sub(1);
+        let contract_team_id = location.team_id;
+        let contract_wage = location.wage;
+        let contract_start = location.start.map(|date| date.to_string());
+        let contract_end = location.end.map(|date| date.to_string());
+
+        roster::validate_release(&self.game_db, player_index, &lists)?;
+        self.game_db[team_at..team_at + 4].copy_from_slice(&MISSING_U32.to_le_bytes());
+        let roster_change = roster::apply_release(&mut self.game_db, player_index, &lists)?;
+        self.rebuild_indexes()?;
+        self.edited_uids.insert(uid);
+
+        let mut changes = vec![self.push_change_display(
+            "club.uid",
+            i64::from(from_club_uid),
+            0,
+            Some(from_club_name.clone()),
+            None,
+        )];
+        changes.push(self.push_change_display(
+            "team.id",
+            i64::from(player_team),
+            i64::from(MISSING_U32),
+            None,
+            None,
+        ));
+        changes.push(self.push_change_display(
+            "roster.players",
+            players_before as i64,
+            players_after as i64,
+            None,
+            None,
+        ));
+        for list in roster_change
+            .lists
+            .iter()
+            .filter(|list| list.team_id != player_team)
+        {
+            changes.push(self.push_change_display(
+                format!("roster.{}.players", list.team_id),
+                list.players_before as i64,
+                list.players_after as i64,
+                None,
+                None,
+            ));
+        }
+        if roster_change.captaincy_cleared {
+            changes.push(self.push_change_display(
+                "captaincy",
+                1,
+                0,
+                Some("captain or vice-captain".to_owned()),
+                Some("left empty".to_owned()),
+            ));
+        }
+        Ok(ReleaseChange {
+            uid,
+            player_index,
+            from_club_uid,
+            from_club_name,
+            from_team_id: player_team,
+            players_before,
+            players_after,
+            lists: roster_change
+                .lists
+                .iter()
+                .map(|list| ReleaseListChange {
+                    team_id: list.team_id,
+                    club_uid: lists
+                        .iter()
+                        .find(|record| record.team_id == list.team_id)
+                        .map(|record| record.club_uid)
+                        .unwrap_or(from_club_uid),
+                    players_before: list.players_before,
+                    players_after: list.players_after,
+                })
+                .collect(),
+            captaincy_cleared: roster_change.captaincy_cleared,
+            contract_team_id,
+            contract_wage,
+            contract_start,
+            contract_end,
             changes,
         })
     }

@@ -923,10 +923,14 @@ const en = {
   // Pending changes
   "pending.title": "Pending changes",
   "pending.badge": "Pending",
-  "pending.description": "Review staged player edits and transfers, then write them all into one new save file.",
+  "pending.description":
+    "Review staged player edits, transfers and releases, then write them all into one new save file.",
   "pending.empty": "No pending changes.",
   "pending.summary": "{players} players · {changes} changes",
   "pending.summaryTransfers": "{players} players · {transfers} transfers · {changes} changes",
+  "pending.summaryReleases": "{players} players · {releases} releases · {changes} changes",
+  "pending.summaryAll":
+    "{players} players · {transfers} transfers · {releases} releases · {changes} changes",
   "pending.hint": "One new save file for all changes",
   "pending.changeCount": "{count} changes",
   "pending.remove": "Remove",
@@ -937,11 +941,14 @@ const en = {
   "pending.successDescription": "{path}",
   "pending.open": "Open edited save",
   "pending.transfers": "Transfers",
+  "pending.releases": "Releases",
   "pending.playerEdits": "Player edits",
   "pending.transfer": "Transfer",
+  "pending.release": "Release",
+  "pending.extraLists": "Also left {count} list(s)",
   "pending.squadNumberCleared": "#{number} cleared",
   "pending.note":
-    "All staged player edits and transfers are written together in one pass. Existing output files are not overwritten; the source save is never modified. Pending changes live only in this session, so save them before quitting.",
+    "All staged player edits, transfers and releases are written together in one pass. Existing output files are not overwritten; the source save is never modified. Pending changes live only in this session, so save them before quitting.",
   "pending.riskWarning":
     "This step writes a new save file. If the output is corrupted or the game cannot read it, the source save remains untouched. Keep a backup and verify the output in game before relying on it.",
   "pending.added": "added",
@@ -954,6 +961,7 @@ const en = {
   // Player editor
   "inspector.edit": "Edit",
   "inspector.transfer": "Transfer",
+  "inspector.release": "Release",
   "edit.title": "Edit player",
   "edit.description": "Changes are staged per player; save all pending changes together to a new file.",
   "edit.tab.ability": "Ability",
@@ -1074,6 +1082,8 @@ const en = {
     "This player also has staged player edits; both are written to the same new save.",
   "transfer.alreadyStaged":
     "A move to {club} is already staged; choosing another club replaces it.",
+  "transfer.pendingRelease":
+    "A release is staged for this player. Remove it in Pending changes before staging a transfer.",
   "transfer.planTitle": "Preview",
   "transfer.from": "From",
   "transfer.to": "To",
@@ -1088,6 +1098,35 @@ const en = {
   "transfer.staged": "Transfer staged",
   "transfer.stagedDescription":
     "{name} → {club} · saved with pending changes",
+
+  // Release
+  "release.title": "Release player",
+  "release.description":
+    "Release a contracted player from his club. He becomes a free agent, and the release is saved with your other pending changes.",
+  "release.currentClub": "Currently at {club}",
+  "release.from": "From",
+  "release.loadingPlayer": "Loading player…",
+  "release.previewing": "Checking the save…",
+  "release.planTitle": "Preview",
+  "release.roster": "Squad {before} → {after}",
+  "release.extraLists": "Also removed from {count} other team list(s).",
+  "release.captaincyCleared": "Captain or vice-captain role left empty",
+  "release.contractKept":
+    "The contract record, wage, squad number and listing bits are kept.",
+  "release.selectionWarning":
+    "Saved tactics and selections are not edited; the released player may still appear in a saved lineup.",
+  "release.riskWarning":
+    "Experimental release: staged releases are written into the same new save copy as your other pending changes. The source save is never changed. Back up the source, close Football Manager before writing, and load the copy to verify the release.",
+  "release.guardHint":
+    "Only a contracted player registered with his club can be released. Free agents, loans, expired contracts and future contracts are refused.",
+  "release.pendingTransfer":
+    "A transfer to {club} is staged for this player. Remove it in Pending changes before staging a release.",
+  "release.alreadyStaged":
+    "A release is already staged; staging again replaces it.",
+  "release.stage": "Add to pending changes",
+  "release.staged": "Release staged",
+  "release.stagedDescription":
+    "{name} leaves {club} · saved with pending changes",
 
   // Scouting
   "analysis.tab.scout": "Scouting",
@@ -2115,10 +2154,13 @@ const zhCN: Record<TranslationKey, string> = {
 
   "pending.title": "待保存修改",
   "pending.badge": "待保存",
-  "pending.description": "检查已暂存的球员修改和转会，最后统一写入一个新存档。",
+  "pending.description": "检查已暂存的球员修改、转会和解约，最后统一写入一个新存档。",
   "pending.empty": "没有待保存修改。",
   "pending.summary": "{players} 名球员 · {changes} 项修改",
   "pending.summaryTransfers": "{players} 名球员 · {transfers} 次转会 · {changes} 项修改",
+  "pending.summaryReleases": "{players} 名球员 · {releases} 次解约 · {changes} 项修改",
+  "pending.summaryAll":
+    "{players} 名球员 · {transfers} 次转会 · {releases} 次解约 · {changes} 项修改",
   "pending.hint": "所有修改写入同一个新存档",
   "pending.changeCount": "{count} 项修改",
   "pending.remove": "移除",
@@ -2129,11 +2171,14 @@ const zhCN: Record<TranslationKey, string> = {
   "pending.successDescription": "{path}",
   "pending.open": "打开编辑后的存档",
   "pending.transfers": "转会",
+  "pending.releases": "解约",
   "pending.playerEdits": "球员修改",
   "pending.transfer": "转会",
+  "pending.release": "解约",
+  "pending.extraLists": "同时离开 {count} 个名单",
   "pending.squadNumberCleared": "清除号码 {number}",
   "pending.note":
-    "所有暂存的球员修改和转会会在一次写入中保存到同一个新文件。已有输出文件不会被覆盖，源存档不会被修改。待保存修改只存在于当前会话，退出应用前请先保存。",
+    "所有暂存的球员修改、转会和解约会在一次写入中保存到同一个新文件。已有输出文件不会被覆盖，源存档不会被修改。待保存修改只存在于当前会话，退出应用前请先保存。",
   "pending.riskWarning":
     "这一步会写入一个全新的存档文件。如果输出文件损坏或游戏无法读取，源存档不会被影响；请保留备份，并在游戏内验证输出文件后再使用。",
   "pending.added": "添加",
@@ -2145,6 +2190,7 @@ const zhCN: Record<TranslationKey, string> = {
 
   "inspector.edit": "编辑",
   "inspector.transfer": "转会",
+  "inspector.release": "解约",
   "edit.title": "编辑球员",
   "edit.description": "修改先暂存在球员上；全部编辑完成后统一保存为一个新存档。",
   "edit.tab.ability": "能力",
@@ -2259,6 +2305,7 @@ const zhCN: Record<TranslationKey, string> = {
     "实验性转会：暂存的转会会和其他修改一起写入新存档副本，源存档不会被修改。请先备份源存档，写入前退出 Football Manager，并加载副本验证转会。",
   "transfer.pendingNote": "该球员还有待保存的球员修改；两者会写入同一个新存档。",
   "transfer.alreadyStaged": "已暂存转往 {club} 的转会；选择其他俱乐部会替换它。",
+  "transfer.pendingRelease": "该球员已暂存解约；请先在待保存修改中移除该解约。",
   "transfer.planTitle": "预览",
   "transfer.from": "原俱乐部",
   "transfer.to": "新俱乐部",
@@ -2271,6 +2318,32 @@ const zhCN: Record<TranslationKey, string> = {
   "transfer.stage": "加入待保存修改",
   "transfer.staged": "转会已暂存",
   "transfer.stagedDescription": "{name} → {club} · 将和其他修改一起保存",
+
+  // 解约
+  "release.title": "球员解约",
+  "release.description":
+    "与有合同的球员解约，使他成为自由球员；解约和其它待保存修改会写入同一个新存档。",
+  "release.currentClub": "当前俱乐部：{club}",
+  "release.from": "原俱乐部",
+  "release.loadingPlayer": "正在加载球员…",
+  "release.previewing": "正在检查存档…",
+  "release.planTitle": "预览",
+  "release.roster": "阵容 {before} → {after}",
+  "release.extraLists": "同时从另外 {count} 个球队名单中移除。",
+  "release.captaincyCleared": "队长/副队长位置已清空",
+  "release.contractKept": "合同记录、工资、球衣号码和挂牌状态保持不变。",
+  "release.selectionWarning":
+    "不会修改已保存的战术和出场阵容；解约球员可能仍出现在已保存的首发中。",
+  "release.riskWarning":
+    "实验性解约：暂存的解约会和其他修改一起写入新存档副本，源存档不会被修改。请先备份源存档，写入前退出 Football Manager，并加载副本验证解约结果。",
+  "release.guardHint":
+    "仅支持与所在俱乐部有当前合同的球员。自由球员、租借、已过期合同和未来合同会被拒绝。",
+  "release.pendingTransfer":
+    "该球员已暂存转往 {club} 的转会；请先在待保存修改中移除该转会。",
+  "release.alreadyStaged": "已暂存解约；再次暂存会替换它。",
+  "release.stage": "加入待保存修改",
+  "release.staged": "解约已暂存",
+  "release.stagedDescription": "{name} 离开 {club} · 将和其他修改一起保存",
 
   // 球探
   "analysis.tab.scout": "球探",

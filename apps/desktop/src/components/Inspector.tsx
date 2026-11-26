@@ -21,6 +21,7 @@ import {
   ShieldAlert,
   Sparkles,
   TrendingUp,
+  UserMinus,
   UserRound,
   X,
 } from "lucide-react";
@@ -62,8 +63,10 @@ export function Inspector() {
   const dataMode = useAppStore((state) => state.dataMode);
   const setEditOpen = useAppStore((state) => state.setEditOpen);
   const setTransferOpen = useAppStore((state) => state.setTransferOpen);
+  const setReleaseOpen = useAppStore((state) => state.setReleaseOpen);
   const pendingEdits = useAppStore((state) => state.pendingEdits);
   const pendingTransfers = useAppStore((state) => state.pendingTransfers);
+  const pendingReleases = useAppStore((state) => state.pendingReleases);
   const setViewMode = useAppStore((state) => state.setViewMode);
   const setSelectedClubUid = useAppStore((state) => state.setSelectedClubUid);
   const pushToast = useAppStore((state) => state.pushToast);
@@ -198,21 +201,34 @@ export function Inspector() {
             <>
               <Button
                 variant="ghost"
-                size="sm"
-                className="h-6 px-1.5 text-[10px]"
+                size="icon"
+                className="h-6 w-6"
                 onClick={() => setTransferOpen(true)}
+                aria-label={t("inspector.transfer")}
+                title={t("inspector.transfer")}
               >
                 <ArrowRightLeft size={11} />
-                {t("inspector.transfer")}
               </Button>
               <Button
                 variant="ghost"
-                size="sm"
-                className="h-6 px-1.5 text-[10px]"
+                size="icon"
+                className="h-6 w-6"
+                onClick={() => setReleaseOpen(true)}
+                disabled={player.club_uid == null || player.team_id == null}
+                aria-label={t("inspector.release")}
+                title={t("inspector.release")}
+              >
+                <UserMinus size={11} />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-6 w-6"
                 onClick={() => setEditOpen(true)}
+                aria-label={t("inspector.edit")}
+                title={t("inspector.edit")}
               >
                 <Pencil size={11} />
-                {t("inspector.edit")}
               </Button>
             </>
           )}
@@ -314,7 +330,9 @@ export function Inspector() {
                     {player.gender === 1 && (
                       <Badge tone="blue">{t("inspector.womenBadge")}</Badge>
                     )}
-                    {(pendingEdits[player.uid] || pendingTransfers[player.uid]) && (
+                    {(pendingEdits[player.uid] ||
+                      pendingTransfers[player.uid] ||
+                      pendingReleases[player.uid]) && (
                       <Badge tone="gold">{t("pending.badge")}</Badge>
                     )}
                   </div>

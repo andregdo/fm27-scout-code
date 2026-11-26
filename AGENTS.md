@@ -9,7 +9,7 @@ FM27 Scout is a macOS scouting workbench for Football Manager 27 with an optiona
 ## Workspace layout
 
 - `crates/fm27-core/` — platform-independent save parser, SQLite cache, query/filter/sort layer, scoring models and byte-level editors. No Tauri dependency.
-- `crates/fm27-cli/` — the `fm27scout` CLI (`inspect`, `validate`, `players`, `clubs`, `sponsorships`, `competitions`, `index`, `export`, `edit`, `edit-club`, `transfer`).
+- `crates/fm27-cli/` — the `fm27scout` CLI (`inspect`, `validate`, `players`, `clubs`, `sponsorships`, `competitions`, `index`, `export`, `edit`, `edit-club`, `transfer`, `release`).
 - `apps/desktop/src-tauri/` — Tauri commands, app state, menu and file-open handling.
 - `apps/desktop/src/` — React UI (`components/`, `lib/`, `store/`).
 - `shared/schema.sql` — SQLite schema, compiled into `fm27-core` with `include_str!`.
@@ -98,6 +98,7 @@ cargo build --release -p fm27-cli
 ./target/release/fm27scout sponsorships "/path/to/save.fm" --active --output sponsorships.json
 ./target/release/fm27scout index "/path/to/save.fm" --db fm27scout.db
 ./target/release/fm27scout transfer "/path/to/save.fm" --uid 2000449256 --to-club 2391 --output transferred.fm
+./target/release/fm27scout release "/path/to/save.fm" --uid 200515 --output released.fm
 ```
 
 ### Oracle validation
@@ -156,7 +157,7 @@ cargo build --release -p fm27-cli
 
 - `AppState` holds the writable `Store` behind a mutex, a pool of four independent read-only `Store` connections, and the data directory. Read queries use `run_read_command`; expensive or mutating work uses the writable store inside `spawn_blocking`.
 - `open_save` checks the fingerprint cache, copies the selected save to a temporary snapshot, parses it with `parse://progress` events, verifies the source did not change during the copy, then inserts the result.
-- Editing commands (`edit_player`, `edit_club`, `save_pending_changes`, `preview_transfer`) mutate decompressed `game_db` bytes in memory, write a **new** file through `SaveFile::write_with_replacements`, refuse to overwrite an output, re-parse the result and verify every requested field, and delete the output if verification fails. `preview_transfer` plans the move without writing. `save_pending_changes` applies fixed-width player edits first, then any number of transfers (each roster splice rescans the player indexes), and verifies both kinds in one batch.
+- Editing commands (`edit_player`, `edit_club`, `save_pending_changes`, `preview_transfer`, `preview_release`) mutate decompressed `game_db` bytes in memory, write a **new** file through `SaveFile::write_with_replacements`, refuse to overwrite an output, re-parse the result and verify every requested field, and delete the output if verification fails. `preview_transfer` and `preview_release` plan the change without writing. `save_pending_changes` applies fixed-width player edits first, then any number of transfers and releases (each roster splice rescans the player indexes), and verifies every kind in one batch.
 - Every command must be registered in `tauri::generate_handler!` in `apps/desktop/src-tauri/src/lib.rs`.
 - Menu actions and Finder file-open events are bridged to the frontend by emitted events; a pending open path survives a cold launch. Undo/redo/cut/copy/paste use predefined native menu items.
 
@@ -200,6 +201,7 @@ cargo build --release -p fm27-cli
 - `docs/limitations.md` — supported builds, data gaps, safety boundaries and roadmap.
 - `docs/editor.md` — editing workflow, CA/PA behaviour and the RCA estimator.
 - `docs/transfer-editor.md` — experimental player transfers: write set, guards, evidence and validation plan.
+- `docs/release-editor.md` — experimental player releases: write set, guards, evidence and validation plan.
 - `docs/moneyball-feasibility.md`, `docs/moneyball-phase0.md`, `docs/moneyball-phase2.md`, `docs/moneyball-phase3.md`, `docs/moneyball-phase4.md`, `docs/moneyball-phase5.md`, `docs/moneyball-phase6.md`, `docs/moneyball-phase7.md`, `docs/moneyball-phase8.md`, `docs/moneyball-phase9.md`, `docs/league-fixtures-spike.md` — model design, validation, parser spike and known biases.
 - `docs/performance-optimization.md` — performance review and implemented optimizations.
 - `docs/release.md` — versioning, CI release artifacts, updater signing and notarization.

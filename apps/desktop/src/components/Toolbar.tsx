@@ -46,9 +46,11 @@ export function Toolbar() {
   const setPendingOpen = useAppStore((state) => state.setPendingOpen);
   const pendingEdits = useAppStore((state) => state.pendingEdits);
   const pendingTransfers = useAppStore((state) => state.pendingTransfers);
+  const pendingReleases = useAppStore((state) => state.pendingReleases);
   const pendingCount = new Set([
     ...Object.keys(pendingEdits),
     ...Object.keys(pendingTransfers),
+    ...Object.keys(pendingReleases),
   ]).size;
   const setSettingsOpen = useAppStore((state) => state.setSettingsOpen);
   const setHelpOpen = useAppStore((state) => state.setHelpOpen);

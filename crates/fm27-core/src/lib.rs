@@ -46,7 +46,7 @@ pub mod youth_level;
 pub use club_editor::{
     ClubEditRequest, ClubEditor, ClubFacilityEdit, ClubFinanceEdit, StadiumCapacityEdit,
 };
-pub use editor::{EditChange, PlayerEditor, TransferChange};
+pub use editor::{EditChange, PlayerEditor, ReleaseChange, ReleaseListChange, TransferChange};
 pub use error::{Error, Result};
 pub use model::{
     Club, ClubDetail, ClubLink, Contract, FinanceMonth, ManagedClub, ParseReport, Player,

@@ -2,11 +2,11 @@
 
 ## Security boundaries
 
-- Read commands and default browsing are read-only. The desktop player-edit and
-  transfer dialogs stage changes; the pending-changes dialog writes one new save
-  for all of them. The club-edit dialog and the optional `edit`, `edit-club` and
-  `transfer` CLI subcommands write a **new** save file, refuse to overwrite their
-  source, and verify the result by re-parsing it.
+- Read commands and default browsing are read-only. The desktop player-edit,
+  transfer and release dialogs stage changes; the pending-changes dialog writes
+  one new save for all of them. The club-edit dialog and the optional `edit`,
+  `edit-club`, `transfer` and `release` CLI subcommands write a **new** save file,
+  refuse to overwrite their source, and verify the result by re-parsing it.
 - Never reads game memory or injects into game processes.
 - Does not enable Tauri `shell` / arbitrary filesystem plugins; only files
   selected by the user are used.
@@ -148,6 +148,16 @@
   listing and saved-selection cases have not
   been separately audited, and the new club's squad-number screen was not checked. Validate every test save in FM27 before relying on it, and
   keep the source save backed up.
+- Releases are experimental and available from the CLI and the desktop
+  **Release** dialog. A release clears the player's team registration, removes
+  him from every team list of his club that holds him and leaves a captaincy
+  empty; the contract record, wage, squad number, listing bits and club join date
+  are kept, as the game keeps them for its own free agents. Free agents, loans,
+  expired contracts, future contract records and players whose registered team
+  has no stored list are refused. Saved tactics, transfer history and the
+  player's last-club fields are not edited. The save is verified by re-parsing
+  it; in-game loading of a released save has not been tested yet. See
+  [release-editor.md](release-editor.md).
 - Windows/Linux builds are not available yet.
 - CI publishes an unsigned DMG; on first launch, use
   **System Settings → Privacy & Security → Open Anyway**. Developer ID

@@ -88,6 +88,24 @@ pub struct RosterTransfer {
     pub captaincy_cleared: bool,
 }
 
+/// One team list a release removed the player from.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct RosterListRelease {
+    pub team_id: u32,
+    pub players_before: usize,
+    pub players_after: usize,
+}
+
+/// What a release changed across the club's team lists.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RosterRelease {
+    /// Player index plus one.
+    pub player_index: u32,
+    pub lists: Vec<RosterListRelease>,
+    /// Whether any team listed the player as captain or vice-captain.
+    pub captaincy_cleared: bool,
+}
+
 /// Find the player list for `team_id` in `game_db`.
 ///
 /// `expected_club_uid` is the club the caller believes fields the team. Senior
@@ -348,6 +366,101 @@ pub fn apply_transfer(
     })
 }
 
+/// Check that a release can remove `player_index` from every list in `lists`.
+///
+/// A release needs at least one list, each list must hold the player exactly
+/// once, and the records must not overlap. Unlike a transfer, the edit shrinks
+/// `game_db`: every list loses one four-byte entry.
+pub fn validate_release(game_db: &[u8], player_index: u32, lists: &[TeamListRecord]) -> Result<()> {
+    if player_index == 0 || player_index == u32::MAX {
+        return Err(Error::parse("the player index is a missing-player marker"));
+    }
+    if lists.is_empty() {
+        return Err(Error::Unsupported(
+            "no team player list holds the player".to_owned(),
+        ));
+    }
+    for list in lists {
+        if list.start + list.len() > game_db.len() {
+            return Err(Error::parse("a team record runs past the end of game_db"));
+        }
+        let hits = list
+            .players
+            .iter()
+            .filter(|&&value| value == player_index)
+            .count();
+        if hits != 1 {
+            return Err(Error::Unsupported(format!(
+                "team {} holds the player {hits} times; a release needs exactly once",
+                list.team_id
+            )));
+        }
+    }
+    let mut sorted: Vec<&TeamListRecord> = lists.iter().collect();
+    sorted.sort_by_key(|list| list.start);
+    for pair in sorted.windows(2) {
+        if pair[0].start + pair[0].len() > pair[1].start {
+            return Err(Error::parse("two team records overlap in game_db"));
+        }
+    }
+    Ok(())
+}
+
+/// Remove `player_index` (a `pindex + 1`) from every list in `lists`.
+///
+/// This is the roster half of a release: the player leaves every team list of
+/// his club that holds him, and a captain or vice-captain reference to him is
+/// left empty. Each rewritten record loses four bytes, so `game_db` shrinks by
+/// four bytes per list. The caller must have found the records in `game_db`.
+pub fn apply_release(
+    game_db: &mut Vec<u8>,
+    player_index: u32,
+    lists: &[TeamListRecord],
+) -> Result<RosterRelease> {
+    validate_release(game_db, player_index, lists)?;
+
+    let mut sorted: Vec<&TeamListRecord> = lists.iter().collect();
+    sorted.sort_by_key(|list| list.start);
+    let shrink = 4usize
+        .checked_mul(sorted.len())
+        .ok_or_else(|| Error::parse("the roster release size overflows"))?;
+    let mut out = Vec::with_capacity(game_db.len().saturating_sub(shrink));
+    let mut cursor = 0usize;
+    let mut captaincy_cleared = false;
+    let mut released = Vec::with_capacity(sorted.len());
+    for list in &sorted {
+        if list.start < cursor {
+            return Err(Error::parse("two team records overlap in game_db"));
+        }
+        out.extend_from_slice(&game_db[cursor..list.start]);
+        let mut players = list.players.clone();
+        players.retain(|&value| value != player_index);
+        captaincy_cleared |=
+            list.captain == Some(player_index) || list.vice_captain == Some(player_index);
+        out.extend_from_slice(&encode_record(game_db, list, &players, true, player_index));
+        cursor = list.start + list.len();
+        released.push(RosterListRelease {
+            team_id: list.team_id,
+            players_before: list.players.len(),
+            players_after: players.len(),
+        });
+    }
+    out.extend_from_slice(&game_db[cursor..]);
+    if out.len() != game_db.len().saturating_sub(shrink) {
+        return Err(Error::parse(format!(
+            "the roster release changed game_db length from {} to {}",
+            game_db.len(),
+            out.len()
+        )));
+    }
+    *game_db = out;
+    Ok(RosterRelease {
+        player_index,
+        lists: released,
+        captaincy_cleared,
+    })
+}
+
 /// Encode one team record with `players`, copying the record's header and trailer.
 fn encode_record(
     game_db: &[u8],
@@ -497,6 +610,65 @@ mod tests {
         append_record(&mut game_db, &record(10, 20, &[101, 102], None, None));
         let error = find_team_list(&game_db, 10, Some(20), &known(&[101])).unwrap_err();
         assert!(matches!(error, Error::Unsupported(_)));
+    }
+
+    #[test]
+    fn releases_a_player_from_one_list_and_clears_captaincy() {
+        let mut game_db = Vec::new();
+        append_record(
+            &mut game_db,
+            &record(10, 20, &[101, 102, 103], Some(102), None),
+        );
+        let before = game_db.len();
+        let list = find_team_list(&game_db, 10, Some(20), &known(&[101, 102, 103])).unwrap();
+        let change = apply_release(&mut game_db, 102, &[list]).unwrap();
+        assert_eq!(game_db.len(), before - 4);
+        assert!(change.captaincy_cleared);
+        assert_eq!(
+            change.lists,
+            vec![RosterListRelease {
+                team_id: 10,
+                players_before: 3,
+                players_after: 2,
+            }]
+        );
+        let after = find_team_list(&game_db, 10, Some(20), &known(&[101, 102, 103])).unwrap();
+        assert_eq!(after.players, vec![101, 103]);
+        assert_eq!(after.captain, None);
+    }
+
+    #[test]
+    fn releases_a_player_from_every_list_that_holds_him() {
+        let mut game_db = Vec::new();
+        append_record(
+            &mut game_db,
+            &record(10, 20, &[101, 102, 103], Some(103), None),
+        );
+        append_record(&mut game_db, &record(11, 20, &[102, 201], None, Some(102)));
+        let before = game_db.len();
+        let first = find_team_list(&game_db, 10, Some(20), &known(&[101, 102, 103, 201])).unwrap();
+        let second = find_team_list(&game_db, 11, Some(20), &known(&[101, 102, 103, 201])).unwrap();
+        let change = apply_release(&mut game_db, 102, &[first, second]).unwrap();
+        assert_eq!(game_db.len(), before - 8);
+        assert!(change.captaincy_cleared);
+        assert_eq!(change.lists.len(), 2);
+        let first_after =
+            find_team_list(&game_db, 10, Some(20), &known(&[101, 102, 103, 201])).unwrap();
+        let second_after =
+            find_team_list(&game_db, 11, Some(20), &known(&[101, 102, 103, 201])).unwrap();
+        assert_eq!(first_after.players, vec![101, 103]);
+        assert_eq!(second_after.players, vec![201]);
+        assert_eq!(second_after.vice_captain, None);
+    }
+
+    #[test]
+    fn refuses_a_release_when_a_list_does_not_hold_the_player() {
+        let mut game_db = Vec::new();
+        append_record(&mut game_db, &record(10, 20, &[101], None, None));
+        append_record(&mut game_db, &record(11, 20, &[201], None, None));
+        let first = find_team_list(&game_db, 10, Some(20), &known(&[101, 201])).unwrap();
+        let second = find_team_list(&game_db, 11, Some(20), &known(&[101, 201])).unwrap();
+        assert!(apply_release(&mut game_db, 101, &[first, second]).is_err());
     }
 
     #[test]

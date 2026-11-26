@@ -235,6 +235,20 @@ export interface PendingTransfer {
   changes: PendingChange[];
 }
 
+/** A release staged from the Release dialog and saved with the batch. */
+export interface PendingRelease {
+  uid: number;
+  name: string;
+  from_club_name: string;
+  from_team_id: number;
+  players_before: number;
+  players_after: number;
+  /** Number of team lists the player was removed from. */
+  lists_cleared: number;
+  captaincy_cleared: boolean;
+  changes: PendingChange[];
+}
+
 export type ViewMode = "players" | "clubs" | "staff";
 
 interface AppState {
@@ -273,9 +287,11 @@ interface AppState {
   exportOpen: boolean;
   editOpen: boolean;
   transferOpen: boolean;
+  releaseOpen: boolean;
   pendingOpen: boolean;
   pendingEdits: Record<number, PendingEdit>;
   pendingTransfers: Record<number, PendingTransfer>;
+  pendingReleases: Record<number, PendingRelease>;
   helpOpen: boolean;
   toasts: Toast[];
   parsing: boolean;
@@ -328,11 +344,14 @@ interface AppState {
   setExportOpen: (open: boolean) => void;
   setEditOpen: (open: boolean) => void;
   setTransferOpen: (open: boolean) => void;
+  setReleaseOpen: (open: boolean) => void;
   setPendingOpen: (open: boolean) => void;
   stageEdit: (edit: PendingEdit) => void;
   removePendingEdit: (uid: number) => void;
   stageTransfer: (transfer: PendingTransfer) => void;
   removePendingTransfer: (uid: number) => void;
+  stageRelease: (release: PendingRelease) => void;
+  removePendingRelease: (uid: number) => void;
   clearPendingChanges: () => void;
   setHelpOpen: (open: boolean) => void;
   setParsing: (parsing: boolean) => void;
@@ -379,9 +398,11 @@ export const useAppStore = create<AppState>((set, get) => ({
   exportOpen: false,
   editOpen: false,
   transferOpen: false,
+  releaseOpen: false,
   pendingOpen: false,
   pendingEdits: {},
   pendingTransfers: {},
+  pendingReleases: {},
   helpOpen: false,
   toasts: [],
   parsing: false,
@@ -409,9 +430,11 @@ export const useAppStore = create<AppState>((set, get) => ({
       compareUids: [],
       editOpen: false,
       transferOpen: false,
+      releaseOpen: false,
       pendingOpen: false,
       pendingEdits: {},
       pendingTransfers: {},
+      pendingReleases: {},
     }),
   clearSession: () =>
     set({
@@ -431,9 +454,11 @@ export const useAppStore = create<AppState>((set, get) => ({
       exportOpen: false,
       editOpen: false,
       transferOpen: false,
+      releaseOpen: false,
       pendingOpen: false,
       pendingEdits: {},
       pendingTransfers: {},
+      pendingReleases: {},
     }),
   setViewMode: (viewMode) => set({ viewMode }),
   setFilterOptions: (filterOptions) => set({ filterOptions }),
@@ -727,6 +752,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   setExportOpen: (exportOpen) => set({ exportOpen }),
   setEditOpen: (editOpen) => set({ editOpen }),
   setTransferOpen: (transferOpen) => set({ transferOpen }),
+  setReleaseOpen: (releaseOpen) => set({ releaseOpen }),
   setPendingOpen: (pendingOpen) => set({ pendingOpen }),
   stageEdit: (edit) =>
     set((state) => ({
@@ -748,7 +774,18 @@ export const useAppStore = create<AppState>((set, get) => ({
       delete pendingTransfers[uid];
       return { pendingTransfers };
     }),
-  clearPendingChanges: () => set({ pendingEdits: {}, pendingTransfers: {} }),
+  stageRelease: (release) =>
+    set((state) => ({
+      pendingReleases: { ...state.pendingReleases, [release.uid]: release },
+    })),
+  removePendingRelease: (uid) =>
+    set((state) => {
+      const pendingReleases = { ...state.pendingReleases };
+      delete pendingReleases[uid];
+      return { pendingReleases };
+    }),
+  clearPendingChanges: () =>
+    set({ pendingEdits: {}, pendingTransfers: {}, pendingReleases: {} }),
   setHelpOpen: (helpOpen) => set({ helpOpen }),
   setParsing: (parsing) => set({ parsing, parseProgress: parsing ? get().parseProgress : null }),
   setParseProgress: (parseProgress) => set({ parseProgress }),

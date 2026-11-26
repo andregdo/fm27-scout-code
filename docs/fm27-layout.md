@@ -344,6 +344,11 @@ game completed removed the player from the old list and appended him to the new 
 total `game_db` length is unchanged by such a move: one record loses four bytes and the
 other gains four.
 
+A release removes the player from every list of his club that holds him and sets his
+`team_id` to `FFFFFFFF`; no record gains the bytes back, so `game_db` shrinks by four bytes
+per rewritten list. Free agents in the reference save store `FFFFFFFF` at the player
+record's team id and keep their last contract chain record.
+
 ## Competitions
 
 The stage table sits in the tail of `game_db`. Rows are 33 bytes:
